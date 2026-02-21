@@ -12,7 +12,7 @@ namespace DustInterceptor
         // === Camera ===
         public float CameraZoomSpeed = 0.9f;
         public float CameraZoomMin = 0.005f;
-        public float CameraZoomMax = 0.35f;
+        public float CameraZoomMax = 2.0f;
         public float CameraZoomDefault = 0.25f;
         public float CameraPanSpeed = 800f;
 
@@ -24,24 +24,28 @@ namespace DustInterceptor
         public float GridLineWidth = 1000f;                // Thickness of grid lines in world units
 
         // === Trail Rendering ===
-        public Color PastTrailColor = new(120, 120, 120, 130);
+        public Color PastTrailColor = new(20, 20, 20, 20); //alpha does not work
         public float PastTrailWidth = 75f;
-        public Color PredictedTrailColor = new(80, 230, 255, 200);
+        public Color PredictedTrailColor = new(20, 50, 60, 10); //alpha does not work
         public float PredictedTrailWidth = 16f;
 
         // === Impulse Aim Rendering ===
-        public Color ImpulseAimReadyColor = new(255, 80, 80, 255);      // Bright red when ready
+        public Color ImpulseAimReadyColor = new(255, 80, 80, 180);      // Bright red when ready
         public Color ImpulseAimChargingColor = new(100, 100, 100, 150); // Dim gray while charging
         public float ImpulseAimWidth = 28f;
         public float ImpulseAimScale = 20.9f;
 
         // === World Colors ===
         public Color BackgroundColor = new(8, 10, 18);
-        public Color PlanetColor = new(45, 70, 130);
-        public Color ShipFlightColor = new(255, 210, 80);
+        public Color ShipFlightColor = new(255, 255, 255);
         public Color ShipDockedColor = new(100, 255, 100);
         public Color DockedHighlightColor = new(100, 255, 100, 100);
         public float DockedHighlightPadding = 30f;
+
+        // === Planet Colors (Gas Giant) ===
+        public Color PlanetColor = new(45, 70, 130);          // Base color
+        public Color PlanetBandColor1 = new(60, 50, 100);     // Darker band color
+        public Color PlanetBandColor2 = new(80, 100, 150);    // Lighter swirl color
 
         // === Asteroid Colors ===
         public Color AsteroidDepletedColor = new(50, 50, 50);

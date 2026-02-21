@@ -9,5 +9,15 @@ namespace DustInterceptor
         public float Mass;
         public float Density;
         public float Radius;
+        
+        /// <summary>
+        /// Rotation angle in radians. 0 = pointing right (+X), PI/2 = pointing up (+Y).
+        /// </summary>
+        public float Rotation;
+        
+        /// <summary>
+        /// Angular velocity in radians per second.
+        /// </summary>
+        public float AngularVelocity;
     }
 }

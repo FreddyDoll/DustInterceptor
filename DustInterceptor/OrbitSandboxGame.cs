@@ -16,9 +16,12 @@ namespace DustInterceptor
         // Textures
         private Texture2D _pixel = null!;
         private Texture2D _circle = null!;
+        private Texture2D _shipTexture = null!;
 
         // Shaders
         private Effect _backgroundGridEffect = null!;
+        private Effect _planetEffect = null!;
+        private Effect _asteroidEffect = null!;
         private float _shaderTime;
 
         // Camera
@@ -91,8 +94,13 @@ namespace DustInterceptor
 
             _circle = CreateCircleTexture(GraphicsDevice, radiusPx: 128);
 
+            // Load textures
+            _shipTexture = Content.Load<Texture2D>("Ship");
+
             // Load shaders
             _backgroundGridEffect = Content.Load<Effect>("BackgroundGrid");
+            _planetEffect = Content.Load<Effect>("Planet");
+            _asteroidEffect = Content.Load<Effect>("Asteroid");
 
             // Initialize UI
             _miningUi = new MiningUi(this, _resolutionScale);
@@ -265,18 +273,18 @@ namespace DustInterceptor
 
             _spriteBatch.Begin(
                 sortMode: SpriteSortMode.Deferred,
-                blendState: BlendState.AlphaBlend,
+                blendState: BlendState.NonPremultiplied,
                 samplerState: SamplerState.LinearClamp,
                 depthStencilState: DepthStencilState.None,
                 rasterizerState: RasterizerState.CullNone,
                 effect: null,
                 transformMatrix: _camera.GetViewMatrix(GraphicsDevice));
 
-            // Planet
-            DrawCircleWorld(_world.Planet.Position, _world.Planet.Radius, _config.PlanetColor);
+            // Planet (with shader)
+            DrawPlanetShader();
 
-            // Asteroids
-            DrawAsteroids();
+            // Asteroids (with shader)
+            DrawAsteroidsShader();
 
             // Past trail
             DrawPath(_world.ShipTrail, _config.PastTrailColor, _config.PastTrailWidth);
@@ -284,11 +292,11 @@ namespace DustInterceptor
             // Predicted path
             DrawPath(_world.PredictedPath, _config.PredictedTrailColor, _config.PredictedTrailWidth);
 
-            // Ship
+            // Ship (using texture)
             Color shipColor = _world.Mode == GameMode.Mining
                 ? _config.ShipDockedColor
                 : _config.ShipFlightColor;
-            DrawCircleWorld(_world.Ship.Position, _world.Ship.Radius, shipColor);
+            DrawShip(_world.Ship.Position, _world.Ship.Radius, shipColor);
 
             // Highlight docked asteroid
             if (_world.Mode == GameMode.Mining && _world.DockedAsteroidIndex >= 0)
@@ -298,6 +306,7 @@ namespace DustInterceptor
             }
 
             // Draw impulse vector from ship with cooldown charge-up effect
+            // Shows ship's forward direction (actual firing direction) scaled by aim magnitude
             if (_world.Mode == GameMode.Flight && _impulseAim.LengthSquared() > 1f)
             {
                 float cooldown = _upgrades.GetValue(UpgradeType.ImpulseCooldown);
@@ -309,7 +318,11 @@ namespace DustInterceptor
                     : 1f;
                 chargeProgress = Clamp(chargeProgress, 0f, 1f);
 
-                Vector2 fullEnd = _world.Ship.Position + _impulseAim * _config.ImpulseAimScale;
+                // Use ship's forward direction for the impulse visualization
+                // This shows where the impulse will actually be applied
+                float aimMagnitude = _impulseAim.Length();
+                Vector2 forwardImpulse = _world.ShipForward * aimMagnitude;
+                Vector2 fullEnd = _world.Ship.Position + forwardImpulse * _config.ImpulseAimScale;
                 
                 if (chargeProgress >= 1f)
                 {
@@ -324,7 +337,7 @@ namespace DustInterceptor
                     // Draw charging portion in ready color, length based on progress
                     if (chargeProgress > 0.01f)
                     {
-                        Vector2 chargeEnd = _world.Ship.Position + _impulseAim * _config.ImpulseAimScale * chargeProgress;
+                        Vector2 chargeEnd = _world.Ship.Position + forwardImpulse * _config.ImpulseAimScale * chargeProgress;
                         DrawLineWorld(_world.Ship.Position, chargeEnd, _config.ImpulseAimReadyColor, _config.ImpulseAimWidth);
                     }
                 }
@@ -375,19 +388,124 @@ namespace DustInterceptor
             _spriteBatch.End();
         }
 
-        private void DrawAsteroids()
+        /// <summary>
+        /// Draws the planet using a gas giant shader with swirly bands.
+        /// </summary>
+        private void DrawPlanetShader()
         {
-            for (int i = 0; i < _world.Asteroids.Length; i++)
+            _spriteBatch.End();
+
+            // Set planet shader parameters
+            _planetEffect.Parameters["Time"]?.SetValue(_shaderTime);
+            _planetEffect.Parameters["BaseColor"]?.SetValue(_config.PlanetColor.ToVector3());
+            _planetEffect.Parameters["BandColor1"]?.SetValue(_config.PlanetBandColor1.ToVector3());
+            _planetEffect.Parameters["BandColor2"]?.SetValue(_config.PlanetBandColor2.ToVector3());
+
+            _spriteBatch.Begin(
+                sortMode: SpriteSortMode.Immediate,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.LinearClamp,
+                depthStencilState: DepthStencilState.None,
+                rasterizerState: RasterizerState.CullNone,
+                effect: _planetEffect,
+                transformMatrix: _camera.GetViewMatrix(GraphicsDevice));
+
+            DrawCircleWorld(_world.Planet.Position, _world.Planet.Radius, Color.White);
+
+            _spriteBatch.End();
+
+            // Resume normal spritebatch
+            _spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.LinearClamp,
+                depthStencilState: DepthStencilState.None,
+                rasterizerState: RasterizerState.CullNone,
+                effect: null,
+                transformMatrix: _camera.GetViewMatrix(GraphicsDevice));
+        }
+
+        /// <summary>
+        /// Draws all asteroids using the asteroid shader with material-based coloring.
+        /// Uses spatial hash for view frustum culling.
+        /// </summary>
+        private void DrawAsteroidsShader()
+        {
+            _spriteBatch.End();
+
+            // Calculate visible area in world coordinates
+            var vp = GraphicsDevice.Viewport;
+            float halfWidth = (vp.Width / 2f) / _camera.Zoom;
+            float halfHeight = (vp.Height / 2f) / _camera.Zoom;
+
+            // Set static asteroid shader parameters (ToVector3 already returns 0-1 normalized values)
+            _asteroidEffect.Parameters["IceColor"]?.SetValue(_config.AsteroidIceColor.ToVector3());
+            _asteroidEffect.Parameters["IronColor"]?.SetValue(_config.AsteroidIronColor.ToVector3());
+            _asteroidEffect.Parameters["RockColor"]?.SetValue(_config.AsteroidRockColor.ToVector3());
+
+            _spriteBatch.Begin(
+                sortMode: SpriteSortMode.Immediate,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.LinearClamp,
+                depthStencilState: DepthStencilState.None,
+                rasterizerState: RasterizerState.CullNone,
+                effect: _asteroidEffect,
+                transformMatrix: _camera.GetViewMatrix(GraphicsDevice));
+
+            // Query only visible asteroids using spatial hash
+            foreach (int i in _world.QueryVisibleAsteroids(_camera.Position, halfWidth, halfHeight))
             {
                 ref var a = ref _world.Asteroids[i];
                 
-                // Skip disabled asteroids
                 if (a.Disabled)
                     continue;
 
-                Color color = GetAsteroidColor(ref a);
-                DrawCircleWorld(a.Position, a.Radius, color);
+                float total = a.Ice + a.Iron + a.Rock;
+                if (total < 0.001f)
+                {
+                    // Depleted asteroid - draw simple gray
+                    _spriteBatch.End();
+                    _spriteBatch.Begin(
+                        sortMode: SpriteSortMode.Deferred,
+                        blendState: BlendState.AlphaBlend,
+                        samplerState: SamplerState.LinearClamp,
+                        depthStencilState: DepthStencilState.None,
+                        rasterizerState: RasterizerState.CullNone,
+                        effect: null,
+                        transformMatrix: _camera.GetViewMatrix(GraphicsDevice));
+                    DrawCircleWorld(a.Position, a.Radius, _config.AsteroidDepletedColor);
+                    _spriteBatch.End();
+                    _spriteBatch.Begin(
+                        sortMode: SpriteSortMode.Immediate,
+                        blendState: BlendState.AlphaBlend,
+                        samplerState: SamplerState.LinearClamp,
+                        depthStencilState: DepthStencilState.None,
+                        rasterizerState: RasterizerState.CullNone,
+                        effect: _asteroidEffect,
+                        transformMatrix: _camera.GetViewMatrix(GraphicsDevice));
+                    continue;
+                }
+
+                // Set per-asteroid parameters
+                _asteroidEffect.Parameters["IceRatio"]?.SetValue(a.Ice / total);
+                _asteroidEffect.Parameters["IronRatio"]?.SetValue(a.Iron / total);
+                _asteroidEffect.Parameters["RockRatio"]?.SetValue(a.Rock / total);
+                _asteroidEffect.Parameters["Seed"]?.SetValue((float)(i * 7.31)); // Unique seed per asteroid
+
+                DrawCircleWorld(a.Position, a.Radius, Color.White);
             }
+
+            _spriteBatch.End();
+
+            // Resume normal spritebatch
+            _spriteBatch.Begin(
+                sortMode: SpriteSortMode.Deferred,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.LinearClamp,
+                depthStencilState: DepthStencilState.None,
+                rasterizerState: RasterizerState.CullNone,
+                effect: null,
+                transformMatrix: _camera.GetViewMatrix(GraphicsDevice));
         }
 
         private Color GetAsteroidColor(ref Asteroid a)
@@ -420,6 +538,33 @@ namespace DustInterceptor
                 sourceRectangle: null,
                 color: color,
                 rotation: 0f,
+                origin: origin,
+                scale: scale,
+                effects: SpriteEffects.None,
+                layerDepth: 0f);
+        }
+
+        /// <summary>
+        /// Draws the ship using its texture, rotated to the ship's actual rotation angle.
+        /// </summary>
+        private void DrawShip(Vector2 position, float radiusWorld, Color tint)
+        {
+            var origin = new Vector2(_shipTexture.Width / 2f, _shipTexture.Height / 2f);
+            
+            // Scale to fit the ship radius (use the larger dimension of the texture)
+            float texSize = MathF.Max(_shipTexture.Width, _shipTexture.Height);
+            float scale = (radiusWorld * 2f) / texSize;
+
+            // Use the ship's actual rotation from simulation
+            float rotation = _world.ShipRotation;
+            rotation -= MathF.PI / 2f; // Rotate by 90 degrees to point the ship texture upwards
+
+            _spriteBatch.Draw(
+                _shipTexture,
+                position: position,
+                sourceRectangle: null,
+                color: tint,
+                rotation: rotation,
                 origin: origin,
                 scale: scale,
                 effects: SpriteEffects.None,

@@ -70,15 +70,16 @@ We are currently past the Orbit Sandbox and have:
 
 ## Next Tickets (Agent Mode – do one at a time)
 
-### Ticket V1 - Backround Grid
-**Goal:** A light gray Radial static grid centered on the planet to help visualize orbits and movement.
-- Draw concentric circles at regular intervals (e.g., every 100 units) and radial lines every 30 degrees.
 
-### Ticket G1 — Target selection (later)
+### Ticket G1 — Target selection
 **Goal:** Select asteroid and display target orbit/path.
-- Add selection reticle and A-select logic (flight mode)
+- rework control scheme Y toggles between (camera lock, target selection,pan) modes
+- In target selection mode, right stick moves a cursor that snaps to nearby asteroids
+- Select with A, which then shows a predicted path to that asteroid (similar to impulse preview but for the target instead of the ship)
 Acceptance:
-- You can select a target and see its path
+- Toggle Views
+- Cursor snaps to asteroids
+- Path preview to target on selection
 
 ---
 

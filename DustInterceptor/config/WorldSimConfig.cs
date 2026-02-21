@@ -13,12 +13,41 @@ namespace DustInterceptor
         public float PlanetRadius = 1000f;
 
         // Ship
-        public float ShipRadius = 60f;
+        public float ShipRadius = 180f;
         public float SpawnRadius = 100_000f;
         /// <summary>
         /// Ship mass used for inelastic collision calculations during docking.
         /// </summary>
         public float ShipMass = 1.0f;
+
+        // === Ship Rotation (PID Controller) ===
+        /// <summary>
+        /// Proportional gain for rotation PID controller.
+        /// Higher values = faster response, but may overshoot.
+        /// </summary>
+        public float RotationPGain = 8.0f;
+
+        /// <summary>
+        /// Derivative gain for rotation PID controller.
+        /// Higher values = more damping, reduces overshoot.
+        /// </summary>
+        public float RotationDGain = 4.0f;
+
+        /// <summary>
+        /// Maximum angular velocity in radians per second.
+        /// </summary>
+        public float MaxAngularVelocity = 6.0f;
+
+        /// <summary>
+        /// Deadzone for aim stick. Below this magnitude, ship won't try to rotate.
+        /// </summary>
+        public float AimDeadzone = 0.15f;
+
+        /// <summary>
+        /// Angular damping applied when no target angle (stick in deadzone).
+        /// Brings ship to rest when not aiming.
+        /// </summary>
+        public float AngularDamping = 3.0f;
 
         // Asteroid Belts
         public AsteroidBeltConfig[] AsteroidBelts =

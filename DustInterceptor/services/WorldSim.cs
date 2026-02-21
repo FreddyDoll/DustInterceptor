@@ -95,7 +95,9 @@ namespace DustInterceptor
                 Velocity = tangentialDir * vCircular,
                 Density = 1f,
                 Mass = 1f,
-                Radius = _config.ShipRadius
+                Radius = _config.ShipRadius,
+                Rotation = MathF.PI / 2f, // Start pointing up (in velocity direction)
+                AngularVelocity = 0f
             };
 
             SpawnAsteroids();
@@ -175,6 +177,16 @@ namespace DustInterceptor
         public float ShipRock => _shipRock;
 
         public float ImpulseCooldownLeft => _impulseCooldownLeft;
+
+        /// <summary>
+        /// Gets the ship's current rotation angle in radians.
+        /// </summary>
+        public float ShipRotation => _ship.Rotation;
+
+        /// <summary>
+        /// Gets the ship's forward direction as a unit vector.
+        /// </summary>
+        public Vector2 ShipForward => new Vector2(MathF.Cos(_ship.Rotation), MathF.Sin(_ship.Rotation));
 
         // ===== Cargo operations =====
 
@@ -269,23 +281,34 @@ namespace DustInterceptor
             if (_impulseCooldownLeft > 0f)
                 _impulseCooldownLeft = Math.Max(0f, _impulseCooldownLeft - realDt * timeScale);
 
-            // Apply impulse
-            if (fireImpulse && _impulseCooldownLeft <= 0f && impulseAim.LengthSquared() > 0.001f)
-            {
-                Vector2 scatter = RandomUnitVector2(_rng) * (inaccuracy * impulseAim.Length());
-                _ship.Velocity += impulseAim + scatter;
-                _impulseCooldownLeft = impulseCooldown;
-            }
+            // Calculate aim magnitude for rotation logic
+            float aimMagnitude = impulseAim.Length();
 
-            // Physics simulation (sub-stepped)
+            // Physics simulation (sub-stepped) - includes rotation controller
             float simDt = _config.BaseDt * timeScale;
             int subSteps = ClampInt(timeScale, 1, 16);
             float dtSub = simDt / subSteps;
 
             for (int i = 0; i < subSteps; i++)
             {
+                // Update ship rotation with PD controller (sub-stepped for stability)
+                UpdateShipRotation(dtSub, impulseAim, aimMagnitude);
+                
                 StepBody(ref _ship, dtSub);
                 StepAsteroids(dtSub);
+            }
+
+            // Apply impulse in ship's forward direction (not aim direction)
+            if (fireImpulse && _impulseCooldownLeft <= 0f && aimMagnitude > 0.001f)
+            {
+                // Get ship's forward direction
+                Vector2 forward = ShipForward;
+                
+                // Apply impulse in forward direction, scaled by aim magnitude
+                float impulseMagnitude = aimMagnitude;
+                Vector2 scatter = RandomUnitVector2(_rng) * (inaccuracy * impulseMagnitude);
+                _ship.Velocity += forward * impulseMagnitude + scatter;
+                _impulseCooldownLeft = impulseCooldown;
             }
 
             // Collision detection
@@ -302,8 +325,54 @@ namespace DustInterceptor
                     _shipTrail.Dequeue();
             }
 
-            // Prediction
+            // Prediction (using ship's current forward direction for impulse preview)
             UpdatePrediction(impulseAim);
+        }
+
+        /// <summary>
+        /// Updates ship rotation using a PD controller to reach target angle.
+        /// </summary>
+        private void UpdateShipRotation(float dt, Vector2 impulseAim, float aimMagnitude)
+        {
+            // Check if aim is above deadzone
+            if (aimMagnitude > _config.AimDeadzone * _config.AimDeadzone * 100f) // Compare with squared magnitude threshold
+            {
+                // Calculate target angle from aim direction
+                float targetAngle = MathF.Atan2(impulseAim.Y, impulseAim.X);
+                
+                // Calculate angle error (shortest path)
+                float error = NormalizeAngle(targetAngle - _ship.Rotation);
+                
+                // PD controller: torque = P * error - D * angularVelocity
+                float torque = _config.RotationPGain * error - _config.RotationDGain * _ship.AngularVelocity;
+                
+                // Apply torque to angular velocity
+                _ship.AngularVelocity += torque * dt;
+            }
+            else
+            {
+                // No target - apply damping to bring ship to rest
+                _ship.AngularVelocity -= _ship.AngularVelocity * _config.AngularDamping * dt;
+            }
+
+            // Clamp angular velocity
+            _ship.AngularVelocity = Clamp(_ship.AngularVelocity, -_config.MaxAngularVelocity, _config.MaxAngularVelocity);
+
+            // Integrate rotation
+            _ship.Rotation += _ship.AngularVelocity * dt;
+
+            // Keep rotation in [-PI, PI] range
+            _ship.Rotation = NormalizeAngle(_ship.Rotation);
+        }
+
+        /// <summary>
+        /// Normalizes an angle to the range [-PI, PI].
+        /// </summary>
+        private static float NormalizeAngle(float angle)
+        {
+            while (angle > MathF.PI) angle -= 2f * MathF.PI;
+            while (angle < -MathF.PI) angle += 2f * MathF.PI;
+            return angle;
         }
 
         /// <summary>
@@ -364,6 +433,9 @@ namespace DustInterceptor
                 _ship.Velocity = asteroid.Velocity;
             }
 
+            // Update spatial hash for rendering culling (asteroids moved)
+            UpdateSpatialHash();
+
             // Clear prediction while docked
             _predictedPath.Clear();
         }
@@ -383,7 +455,17 @@ namespace DustInterceptor
                 ref var asteroid = ref _asteroids[_dockedAsteroidIndex];
 
                 _ship.Velocity = asteroid.Velocity;
+
+                // Check if asteroid is depleted and mark it as disabled
+                if (asteroid.IsDepleted)
+                {
+                    asteroid.Ice = 0f;
+                    asteroid.Iron = 0f;
+                    asteroid.Rock = 0f;
+                    asteroid.Disabled = true;
+                }
             }
+
 
             _dockedAsteroidIndex = -1;
         }
@@ -403,6 +485,7 @@ namespace DustInterceptor
             Vector2 acc = ComputeGravityAcceleration(b.Position);
             b.Velocity += acc * dt;
             b.Position += b.Velocity * dt;
+            // Note: Rotation is updated separately in UpdateShipRotation for the ship
         }
 
         private void StepAsteroids(float dt)
@@ -439,7 +522,11 @@ namespace DustInterceptor
             _predictedPath.Clear();
 
             Vector2 pos = _ship.Position;
-            Vector2 vel = _ship.Velocity + impulseAim;
+            
+            // Use ship's forward direction scaled by aim magnitude for prediction
+            float aimMag = impulseAim.Length();
+            Vector2 predictedImpulse = aimMag > 0.001f ? ShipForward * aimMag : Vector2.Zero;
+            Vector2 vel = _ship.Velocity + predictedImpulse;
 
             float dt = _predictionHorizonSeconds / _config.PredictSteps;
 
@@ -468,6 +555,16 @@ namespace DustInterceptor
 
                 _spatialHash.Insert(i, _asteroids[i].Position, _asteroids[i].Radius);
             }
+        }
+
+        /// <summary>
+        /// Queries asteroids visible in a rectangular area (for rendering culling).
+        /// </summary>
+        public IEnumerable<int> QueryVisibleAsteroids(Vector2 center, float halfWidth, float halfHeight)
+        {
+            // Query using the larger dimension as radius for the spatial hash
+            float queryRadius = MathF.Max(halfWidth, halfHeight) * 1.5f; // Add margin for asteroid radii
+            return _spatialHash.Query(center, queryRadius);
         }
 
         private void CheckShipCollisions()
@@ -530,6 +627,9 @@ namespace DustInterceptor
         }
 
         private static int ClampInt(int v, int min, int max) =>
+            (v < min) ? min : (v > max) ? max : v;
+
+        private static float Clamp(float v, float min, float max) =>
             (v < min) ? min : (v > max) ? max : v;
     }
 }
