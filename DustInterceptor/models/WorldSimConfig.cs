@@ -1,0 +1,105 @@
+namespace DustInterceptor
+{
+    /// <summary>
+    /// Configuration for WorldSim. Tuning constants.
+    /// </summary>
+    public sealed class WorldSimConfig
+    {
+        // Physics
+        public float Mu = 8.0e10f;
+        public float BaseDt = 1f / 120f;
+
+        // Planet
+        public float PlanetRadius = 1000f;
+
+        // Ship
+        public float ShipRadius = 60f;
+        public float SpawnRadius = 100_000f;
+
+        // Asteroid Belts
+        public AsteroidBeltConfig[] AsteroidBelts =
+        [
+            new AsteroidBeltConfig
+            {
+                Name = "Inner Planets",
+                Count = 4,
+                InnerRadius = 10_000f,
+                OuterRadius = 60_000f,
+                RadiusMin = 100f,
+                RadiusMax = 500f,
+                OrbitVariation = 0.002f,
+                IceBias = 0.1f,
+                IronBias = 0.6f,
+                RockBias = 0.3f
+            },
+            new AsteroidBeltConfig
+            {
+                Name = "Main Belt",
+                Count = 10000,
+                InnerRadius = 90_000f,
+                OuterRadius = 110_000f,
+                RadiusMin = 5f,
+                RadiusMax = 60f,
+                OrbitVariation = 0.03f,
+                IceBias = 0.33f,
+                IronBias = 0.33f,
+                RockBias = 0.34f
+            },
+            new AsteroidBeltConfig
+            {
+                Name = "Outer Planets",
+                Count = 4,
+                InnerRadius = 200_000f,
+                OuterRadius = 350_000f,
+                RadiusMin = 1_000f,
+                RadiusMax = 8_000f,
+                OrbitVariation = 0.04f,
+                IceBias = 0.7f,
+                IronBias = 0.1f,
+                RockBias = 0.2f
+            },
+            new AsteroidBeltConfig
+            {
+                Name = "Outer Belt",
+                Count = 1000,
+                InnerRadius = 1_000_000f,
+                OuterRadius = 2_000_000f,
+                RadiusMin = 100f,
+                RadiusMax = 800f,
+                OrbitVariation = 0.04f,
+                IceBias = 0.7f,
+                IronBias = 0.1f,
+                RockBias = 0.2f
+            }
+        ];
+
+        // Collision
+        public float SpatialHashCellSize = 500f;
+
+        // Trail
+        public int ShipTrailMax = 2200;
+        public float TrailSamplePeriod = 1f / 30f;
+
+        // Prediction
+        public float PredictHorizonSeconds = 20f;
+        public int PredictSteps = 2400;
+        public int PredictSampleEvery = 12;
+
+        /// <summary>
+        /// Gets the maximum asteroid radius across all belts (for collision queries).
+        /// </summary>
+        public float MaxAsteroidRadius
+        {
+            get
+            {
+                float max = 0f;
+                foreach (var belt in AsteroidBelts)
+                {
+                    if (belt.RadiusMax > max)
+                        max = belt.RadiusMax;
+                }
+                return max;
+            }
+        }
+    }
+}
