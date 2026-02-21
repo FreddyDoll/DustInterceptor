@@ -46,7 +46,12 @@ namespace DustInterceptor
 
         // Input state
         private GamePadState _gpPrev;
-        private bool _cameraLocked = true;
+        private CameraMode _cameraMode = CameraMode.LockedToShip;
+
+        // Target selection state
+        // Cursor offset is relative to ship - this way cursor moves with ship when no input
+        private Vector2 _cursorOffset;
+        private int _hoveredAsteroidIndex = -1;
 
         // Impulse state
         private Vector2 _impulseAim;
@@ -80,7 +85,10 @@ namespace DustInterceptor
             // Camera defaults
             _camera.Zoom = _config.CameraZoomDefault;
             _camera.Position = _world.Ship.Position;
-            _cameraLocked = true;
+            _cameraMode = CameraMode.LockedToShip;
+
+            // Initialize cursor offset at zero (at ship position)
+            _cursorOffset = Vector2.Zero;
 
             base.Initialize();
         }
@@ -135,27 +143,75 @@ namespace DustInterceptor
             int currentTimeScale = (int)_upgrades.Get(UpgradeType.MaxTimeScale).Definition.GetValue(_timeScaleIndex);
             _hud.Update(realDt, currentTimeScale);
 
-            // ----- Input: camera lock (flight mode only - Y is used for upgrade in mining) -----
+            // ----- Input: camera mode toggle (flight mode only - Y is used for upgrade in mining) -----
             if (_world.Mode == GameMode.Flight && Pressed(gp.Buttons.Y, _gpPrev.Buttons.Y))
-                _cameraLocked = true;
+            {
+                // Cycle through camera modes: LockedToShip -> TargetSelection -> FreePan -> LockedToShip
+                _cameraMode = _cameraMode switch
+                {
+                    CameraMode.LockedToShip => CameraMode.TargetSelection,
+                    CameraMode.TargetSelection => CameraMode.FreePan,
+                    CameraMode.FreePan => CameraMode.LockedToShip,
+                    _ => CameraMode.LockedToShip
+                };
+
+                // When entering target selection mode, reset cursor offset to zero (at ship)
+                if (_cameraMode == CameraMode.TargetSelection)
+                {
+                    _cursorOffset = Vector2.Zero;
+                    _hoveredAsteroidIndex = -1;
+                }
+            }
 
             // ----- Input: zoom (LT/RT) with upgradeable min zoom -----
             float minZoom = _upgrades.GetValue(UpgradeType.MinZoomLevel, _config.CameraZoomMin);
             float zoomDelta = (gp.Triggers.Right - gp.Triggers.Left) * _config.CameraZoomSpeed * realDt;
             _camera.Zoom = Clamp(_camera.Zoom * (1f + zoomDelta), minZoom, _config.CameraZoomMax);
 
-            // ----- Input: free pan (right stick) -----
+            // ----- Input: right stick behavior depends on camera mode -----
             var rs = gp.ThumbSticks.Right;
-            Vector2 pan = new Vector2(rs.X, -rs.Y);
-            if (pan.LengthSquared() > 0.01f)
-            {
-                _cameraLocked = false;
-                _camera.Position += pan * (_config.CameraPanSpeed * realDt) / MathF.Max(_camera.Zoom, 0.0001f);
-            }
+            Vector2 stickInput = new Vector2(rs.X, -rs.Y);
 
-            // If locked, follow ship
-            if (_cameraLocked)
+            if (_cameraMode == CameraMode.TargetSelection && _world.Mode == GameMode.Flight)
+            {
+                // In target selection mode, move cursor offset relative to ship
+                if (stickInput.LengthSquared() > 0.01f)
+                {
+                    // Move cursor offset in world space, scaled by zoom
+                    float cursorSpeed = _config.CursorMoveSpeed / MathF.Max(_camera.Zoom, 0.0001f);
+                    _cursorOffset += stickInput * cursorSpeed * realDt;
+                }
+
+                // Calculate cursor world position from ship + offset
+                Vector2 cursorWorldPos = _world.Ship.Position + _cursorOffset;
+
+                // Find closest asteroid to cursor position (auto-highlight, yellow selection jumps to it)
+                // Use fixed world-space snap radius for consistent performance regardless of zoom
+                _hoveredAsteroidIndex = _world.FindClosestAsteroid(cursorWorldPos, _config.CursorSnapRadius);
+
+                // Camera stays locked to ship in target selection mode (G2 change)
                 _camera.Position = _world.Ship.Position;
+
+                // Select target with A button - also returns to ship lock mode
+                if (Pressed(gp.Buttons.A, _gpPrev.Buttons.A) && _hoveredAsteroidIndex >= 0)
+                {
+                    _world.SetSelectedTarget(_hoveredAsteroidIndex);
+                    _cameraMode = CameraMode.LockedToShip; // Return to locked mode after selection
+                }
+            }
+            else if (_cameraMode == CameraMode.FreePan)
+            {
+                // In free pan mode, right stick pans camera
+                if (stickInput.LengthSquared() > 0.01f)
+                {
+                    _camera.Position += stickInput * (_config.CameraPanSpeed * realDt) / MathF.Max(_camera.Zoom, 0.0001f);
+                }
+            }
+            else // LockedToShip or not in flight mode
+            {
+                // If locked, follow ship
+                _camera.Position = _world.Ship.Position;
+            }
 
             // Mode-specific update
             if (_world.Mode == GameMode.Flight)
@@ -165,6 +221,8 @@ namespace DustInterceptor
             else if (_world.Mode == GameMode.Mining)
             {
                 UpdateMiningMode(gp, realDt);
+                // Reset camera mode when entering mining
+                _cameraMode = CameraMode.LockedToShip;
             }
 
             _gpPrev = gp;
@@ -289,8 +347,14 @@ namespace DustInterceptor
             // Past trail
             DrawPath(_world.ShipTrail, _config.PastTrailColor, _config.PastTrailWidth);
 
-            // Predicted path
+            // Predicted path (ship)
             DrawPath(_world.PredictedPath, _config.PredictedTrailColor, _config.PredictedTrailWidth);
+
+            // Target predicted path
+            if (_world.SelectedTargetIndex >= 0)
+            {
+                DrawPath(_world.TargetPredictedPath, _config.TargetPredictedPathColor, _config.TargetPredictedPathWidth);
+            }
 
             // Ship (using texture)
             Color shipColor = _world.Mode == GameMode.Mining
@@ -303,6 +367,38 @@ namespace DustInterceptor
             {
                 ref var asteroid = ref _world.Asteroids[_world.DockedAsteroidIndex];
                 DrawCircleWorld(asteroid.Position, asteroid.Radius + _config.DockedHighlightPadding, _config.DockedHighlightColor);
+            }
+
+            // Highlight selected target asteroid
+            if (_world.SelectedTargetIndex >= 0 && _world.SelectedTargetIndex < _world.Asteroids.Length)
+            {
+                ref var target = ref _world.Asteroids[_world.SelectedTargetIndex];
+                if (!target.Disabled)
+                {
+                    DrawRingWorld(target.Position, target.Radius + _config.TargetHighlightPadding, _config.TargetHighlightColor, _config.CursorRingThickness);
+                }
+            }
+
+            // Draw cursor in target selection mode
+            if (_cameraMode == CameraMode.TargetSelection && _world.Mode == GameMode.Flight)
+            {
+                // Calculate cursor world position from ship + offset
+                Vector2 cursorWorldPos = _world.Ship.Position + _cursorOffset;
+
+                // Draw gray cursor reticle
+                float cursorRadius = _config.CursorRingRadius / MathF.Max(_camera.Zoom, 0.0001f);
+                DrawRingWorld(cursorWorldPos, cursorRadius, _config.CursorColor, _config.CursorRingThickness / MathF.Max(_camera.Zoom, 0.0001f));
+
+                // Draw yellow highlight on closest asteroid (auto-selection)
+                if (_hoveredAsteroidIndex >= 0 && _hoveredAsteroidIndex != _world.SelectedTargetIndex)
+                {
+                    ref var hovered = ref _world.Asteroids[_hoveredAsteroidIndex];
+                    if (!hovered.Disabled)
+                    {
+                        // Draw yellow highlight for auto-selected closest asteroid
+                        DrawRingWorld(hovered.Position, hovered.Radius + _config.TargetHighlightPadding, _config.HoveredAsteroidColor, _config.CursorRingThickness);
+                    }
+                }
             }
 
             // Draw impulse vector from ship with cooldown charge-up effect
@@ -427,7 +523,7 @@ namespace DustInterceptor
 
         /// <summary>
         /// Draws all asteroids using the asteroid shader with material-based coloring.
-        /// Uses spatial hash for view frustum culling.
+        /// Uses LOD spatial hash for efficient culling based on zoom level.
         /// </summary>
         private void DrawAsteroidsShader()
         {
@@ -437,6 +533,11 @@ namespace DustInterceptor
             var vp = GraphicsDevice.Viewport;
             float halfWidth = (vp.Width / 2f) / _camera.Zoom;
             float halfHeight = (vp.Height / 2f) / _camera.Zoom;
+
+            // Calculate minimum asteroid radius to render based on screen size threshold
+            // An asteroid with radius R appears as R * 2 * zoom pixels on screen
+            // We want to cull asteroids smaller than MinAsteroidScreenSize pixels
+            float minAsteroidRadius = _config.MinAsteroidScreenSize / (2f * _camera.Zoom);
 
             // Set static asteroid shader parameters (ToVector3 already returns 0-1 normalized values)
             _asteroidEffect.Parameters["IceColor"]?.SetValue(_config.AsteroidIceColor.ToVector3());
@@ -452,8 +553,8 @@ namespace DustInterceptor
                 effect: _asteroidEffect,
                 transformMatrix: _camera.GetViewMatrix(GraphicsDevice));
 
-            // Query only visible asteroids using spatial hash
-            foreach (int i in _world.QueryVisibleAsteroids(_camera.Position, halfWidth, halfHeight))
+            // Query visible asteroids using LOD spatial hash - automatically filters by size
+            foreach (int i in _world.QueryVisibleAsteroids(_camera.Position, halfWidth, halfHeight, minAsteroidRadius))
             {
                 ref var a = ref _world.Asteroids[i];
                 
@@ -542,6 +643,27 @@ namespace DustInterceptor
                 scale: scale,
                 effects: SpriteEffects.None,
                 layerDepth: 0f);
+        }
+
+        /// <summary>
+        /// Draws a ring (unfilled circle) in world coordinates.
+        /// </summary>
+        private void DrawRingWorld(Vector2 center, float radiusWorld, Color color, float thickness)
+        {
+            // Draw ring using line segments
+            const int segments = 32;
+            float angleStep = MathF.PI * 2f / segments;
+
+            for (int i = 0; i < segments; i++)
+            {
+                float angle1 = i * angleStep;
+                float angle2 = (i + 1) * angleStep;
+
+                Vector2 p1 = center + new Vector2(MathF.Cos(angle1), MathF.Sin(angle1)) * radiusWorld;
+                Vector2 p2 = center + new Vector2(MathF.Cos(angle2), MathF.Sin(angle2)) * radiusWorld;
+
+                DrawLineWorld(p1, p2, color, thickness);
+            }
         }
 
         /// <summary>
@@ -647,5 +769,27 @@ namespace DustInterceptor
         private static float Clamp(float v, float min, float max) =>
             (v < min) ? min : (v > max) ? max : v;
         #endregion
+    }
+    
+    /// <summary>
+    /// Camera control modes for flight.
+    /// Y button cycles through these modes in flight.
+    /// </summary>
+    public enum CameraMode
+    {
+        /// <summary>
+        /// Camera is locked to follow the ship.
+        /// </summary>
+        LockedToShip,
+
+        /// <summary>
+        /// Target selection mode - right stick moves cursor to select asteroids.
+        /// </summary>
+        TargetSelection,
+
+        /// <summary>
+        /// Free pan mode - right stick pans camera freely.
+        /// </summary>
+        FreePan
     }
 }

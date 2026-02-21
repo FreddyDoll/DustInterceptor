@@ -33,8 +33,17 @@ namespace DustInterceptor
         private int _ignoreAsteroidIndex = -1;
         private const float UndockClearanceMargin = 50f;
 
-        // Collision broadphase
+        // Collision broadphase (fine-grained for collision detection)
         private readonly SpatialHashGrid _spatialHash = new();
+
+        // LOD spatial hash for rendering (multiple levels based on asteroid size)
+        private readonly LodSpatialHash _lodSpatialHash = new(
+            (0f, 500f),       // Level 0: All asteroids (radius >= 0), fine cells
+            (20f, 2000f),     // Level 1: Medium+ asteroids (radius >= 20), medium cells
+            (50f, 5000f),     // Level 2: Large asteroids (radius >= 50), coarse cells
+            (100f, 20000f),   // Level 3: Very large asteroids (radius >= 100), very coarse cells
+            (500f, 50000f)    // Level 4: Huge asteroids/planets (radius >= 500), huge cells
+        );
 
         // Trail
         private readonly Queue<Vector2> _shipTrail = new();
@@ -43,6 +52,10 @@ namespace DustInterceptor
         // Prediction
         private readonly List<Vector2> _predictedPath = new();
         private float _predictionHorizonSeconds;
+
+        // Target prediction
+        private readonly List<Vector2> _targetPredictedPath = new();
+        private int _selectedTargetIndex = -1;
 
         // Impulse state
         private float _impulseCooldownLeft;
@@ -169,6 +182,8 @@ namespace DustInterceptor
         public Asteroid[] Asteroids => _asteroids;
         public IReadOnlyCollection<Vector2> ShipTrail => _shipTrail;
         public IReadOnlyList<Vector2> PredictedPath => _predictedPath;
+        public IReadOnlyList<Vector2> TargetPredictedPath => _targetPredictedPath;
+        public int SelectedTargetIndex => _selectedTargetIndex;
         public GameMode Mode => _mode;
         public int DockedAsteroidIndex => _dockedAsteroidIndex;
 
@@ -327,6 +342,9 @@ namespace DustInterceptor
 
             // Prediction (using ship's current forward direction for impulse preview)
             UpdatePrediction(impulseAim);
+
+            // Update target prediction
+            UpdateTargetPrediction();
         }
 
         /// <summary>
@@ -438,6 +456,7 @@ namespace DustInterceptor
 
             // Clear prediction while docked
             _predictedPath.Clear();
+            _targetPredictedPath.Clear();
         }
 
         /// <summary>
@@ -476,6 +495,63 @@ namespace DustInterceptor
         public void ClearTrail()
         {
             _shipTrail.Clear();
+        }
+
+        /// <summary>
+        /// Sets the selected target asteroid index. -1 means no target.
+        /// </summary>
+        public void SetSelectedTarget(int asteroidIndex)
+        {
+            if (asteroidIndex >= 0 && asteroidIndex < _asteroids.Length && !_asteroids[asteroidIndex].Disabled)
+            {
+                _selectedTargetIndex = asteroidIndex;
+            }
+            else
+            {
+                _selectedTargetIndex = -1;
+            }
+        }
+
+        /// <summary>
+        /// Clears the selected target.
+        /// </summary>
+        public void ClearSelectedTarget()
+        {
+            _selectedTargetIndex = -1;
+            _targetPredictedPath.Clear();
+        }
+
+        /// <summary>
+        /// Finds the closest asteroid to a given position within a specified radius.
+        /// Returns -1 if no asteroid is found.
+        /// Excludes asteroids that overlap with the ship position.
+        /// </summary>
+        public int FindClosestAsteroid(Vector2 position, float maxRadius)
+        {
+            int closestIndex = -1;
+            float closestDistSq = maxRadius * maxRadius;
+
+            // Use spatial hash for efficient query
+            foreach (int i in _spatialHash.Query(position, maxRadius))
+            {
+                if (_asteroids[i].Disabled)
+                    continue;
+
+                // Skip asteroids that overlap with the ship (prevents selecting ship as target)
+                float distToShip = Vector2.Distance(_asteroids[i].Position, _ship.Position);
+                float overlapRadius = _ship.Radius + _asteroids[i].Radius;
+                if (distToShip < overlapRadius)
+                    continue;
+
+                float distSq = Vector2.DistanceSquared(position, _asteroids[i].Position);
+                if (distSq < closestDistSq)
+                {
+                    closestDistSq = distSq;
+                    closestIndex = i;
+                }
+            }
+
+            return closestIndex;
         }
 
         // ===== Physics =====
@@ -541,11 +617,45 @@ namespace DustInterceptor
             }
         }
 
+        /// <summary>
+        /// Updates the predicted path for the selected target asteroid.
+        /// </summary>
+        private void UpdateTargetPrediction()
+        {
+            _targetPredictedPath.Clear();
+
+            if (_selectedTargetIndex < 0 || _selectedTargetIndex >= _asteroids.Length)
+                return;
+
+            ref var target = ref _asteroids[_selectedTargetIndex];
+            if (target.Disabled)
+            {
+                _selectedTargetIndex = -1;
+                return;
+            }
+
+            Vector2 pos = target.Position;
+            Vector2 vel = target.Velocity;
+
+            float dt = _predictionHorizonSeconds / _config.PredictSteps;
+
+            for (int i = 0; i <= _config.PredictSteps; i++)
+            {
+                Vector2 acc = ComputeGravityAcceleration(pos);
+                vel += acc * dt;
+                pos += vel * dt;
+
+                if (i % _config.PredictSampleEvery == 0)
+                    _targetPredictedPath.Add(pos);
+            }
+        }
+
         // ===== Collision =====
 
         private void UpdateSpatialHash()
         {
             _spatialHash.Clear(_config.SpatialHashCellSize);
+            _lodSpatialHash.Clear();
 
             for (int i = 0; i < _asteroids.Length; i++)
             {
@@ -554,17 +664,23 @@ namespace DustInterceptor
                     continue;
 
                 _spatialHash.Insert(i, _asteroids[i].Position, _asteroids[i].Radius);
+                _lodSpatialHash.Insert(i, _asteroids[i].Position, _asteroids[i].Radius);
             }
         }
 
         /// <summary>
         /// Queries asteroids visible in a rectangular area (for rendering culling).
+        /// Uses LOD-based spatial hash - when minAsteroidRadius > 0, only queries larger asteroids.
         /// </summary>
-        public IEnumerable<int> QueryVisibleAsteroids(Vector2 center, float halfWidth, float halfHeight)
+        /// <param name="center">Center of query area</param>
+        /// <param name="halfWidth">Half-width of visible area in world units</param>
+        /// <param name="halfHeight">Half-height of visible area in world units</param>
+        /// <param name="minAsteroidRadius">Minimum asteroid radius to return (for LOD culling)</param>
+        public IEnumerable<int> QueryVisibleAsteroids(Vector2 center, float halfWidth, float halfHeight, float minAsteroidRadius = 0f)
         {
             // Query using the larger dimension as radius for the spatial hash
             float queryRadius = MathF.Max(halfWidth, halfHeight) * 1.5f; // Add margin for asteroid radii
-            return _spatialHash.Query(center, queryRadius);
+            return _lodSpatialHash.Query(center, queryRadius, minAsteroidRadius);
         }
 
         private void CheckShipCollisions()

@@ -16,6 +16,57 @@ namespace DustInterceptor
         public float CameraZoomDefault = 0.25f;
         public float CameraPanSpeed = 800f;
 
+        // === Target Selection ===
+        /// <summary>
+        /// Radius in world units for cursor to snap to nearby asteroids.
+        /// </summary>
+        public float CursorSnapRadius = 5000f;
+
+        /// <summary>
+        /// Speed at which cursor moves in world units per second (at zoom 1.0).
+        /// </summary>
+        public float CursorMoveSpeed = 1200f;
+
+        /// <summary>
+        /// Color of the cursor reticle in target selection mode (gray).
+        /// </summary>
+        public Color CursorColor = new(150, 150, 150, 200);
+
+        /// <summary>
+        /// Thickness of the cursor ring.
+        /// </summary>
+        public float CursorRingThickness = 8f;
+
+        /// <summary>
+        /// Size of the cursor ring in world units.
+        /// </summary>
+        public float CursorRingRadius = 200f;
+
+        /// <summary>
+        /// Color of the highlight for the auto-selected closest asteroid (yellow).
+        /// </summary>
+        public Color HoveredAsteroidColor = new(255, 255, 100, 200);
+
+        /// <summary>
+        /// Color of the highlight ring around the currently targeted asteroid.
+        /// </summary>
+        public Color TargetHighlightColor = new(255, 180, 50, 180);
+
+        /// <summary>
+        /// Padding added to asteroid radius for target highlight.
+        /// </summary>
+        public float TargetHighlightPadding = 40f;
+
+        /// <summary>
+        /// Color for the target's predicted orbital path.
+        /// </summary>
+        public Color TargetPredictedPathColor = new(255, 180, 50, 80);
+
+        /// <summary>
+        /// Width of the target predicted path line.
+        /// </summary>
+        public float TargetPredictedPathWidth = 12f;
+
         // === Background Grid ===
         public Color GridColor = new(40, 45, 55, 5);
         public float GridCircleSpacing = 100_000f;        // Distance between concentric circles
@@ -52,5 +103,12 @@ namespace DustInterceptor
         public Color AsteroidIceColor = new(200, 230, 255);
         public Color AsteroidIronColor = new(90, 90, 100);
         public Color AsteroidRockColor = new(140, 110, 80);
+
+        // === Performance / LOD ===
+        /// <summary>
+        /// Minimum asteroid size in screen pixels to be rendered.
+        /// Asteroids smaller than this on screen will be culled.
+        /// </summary>
+        public float MinAsteroidScreenSize = 2f;
     }
 }

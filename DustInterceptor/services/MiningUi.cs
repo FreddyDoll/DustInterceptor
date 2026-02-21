@@ -95,14 +95,15 @@ namespace DustInterceptor
                 Text = "[ TRANSFERRING... ]",
                 TextColor = new Color(255, 200, 100),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Scale = new Vector2(_fontScale)
+                Scale = new Vector2(_fontScale),
+                Margin = new Myra.Graphics2D.Thickness(0, S(5), 0, S(10))
             };
             stack.Widgets.Add(_miningStatusLabel);
 
             // Asteroid info
             _asteroidInfoLabel = new Label
             {
-                Text = "Asteroid Materials:",
+                Text = "Asteroid:",
                 TextColor = Color.White,
                 Wrap = true,
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -122,7 +123,7 @@ namespace DustInterceptor
             // Ship cargo
             _shipCargoLabel = new Label
             {
-                Text = "Ship Cargo:",
+                Text = "Ship:",
                 TextColor = new Color(255, 210, 80),
                 Wrap = true,
                 HorizontalAlignment = HorizontalAlignment.Center,
@@ -236,12 +237,12 @@ namespace DustInterceptor
                 ? new Color(255, 200, 100) 
                 : new Color(150, 150, 150);
 
-            _asteroidInfoLabel.Text = $"Asteroid Materials:\n" +
+            _asteroidInfoLabel.Text = $"Asteroid:\n" +
                 $"  Ice:  {data.AsteroidIce:F1}\n" +
                 $"  Iron: {data.AsteroidIron:F1}\n" +
                 $"  Rock: {data.AsteroidRock:F1}";
 
-            _shipCargoLabel.Text = $"Ship Cargo:\n" +
+            _shipCargoLabel.Text = $"Ship:\n" +
                 $"  Ice:  {data.ShipIce:F1}\n" +
                 $"  Iron: {data.ShipIron:F1}\n" +
                 $"  Rock: {data.ShipRock:F1}";
