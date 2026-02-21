@@ -84,31 +84,34 @@ We are currently past the Orbit Sandbox and have:
 
 ---
 
-## Completed Tickets
-
-### ✅ Ticket G1 — Target selection (DONE)
-**Goal:** Select asteroid and display target orbit/path.
-- Reworked control scheme: Y toggles between (camera lock, target selection, pan) modes
-- In target selection mode, right stick moves a cursor that snaps to nearby asteroids
-- Select with A, which then shows a predicted path to that asteroid
-
-### ✅ Ticket G2 — Rework target selection scheme (DONE)
-**Goal:** Improve Selection Mode UX
-- Camera now stays locked to ship during target selection (not following cursor)
-- Gray cursor reticle moves relative to ship position
-- Yellow highlight auto-jumps to closest asteroid (spatial hash query, excludes ship)
-- A button selects target AND returns camera to ship lock mode
-**Acceptance Criteria - All Met:**
-- ✅ Gray reticle for cursor
-- ✅ Yellow auto-highlight on closest asteroid
-- ✅ Camera stays locked to ship
-- ✅ A button selects and returns to locked mode
-
----
-
 ## Next Tickets (Agent Mode – do one at a time)
 
-*(Add next tickets here)*
+### Ticket G3 — Gate asteroid tracking behind the "Asteroid Tracker" upgrade
+- Problem: Target selection / tracking features work even when the upgrade is not purchased.
+- Goal:
+  - Without the upgrade: disable entering Target Selection mode and any target preview/selection.
+  - With the upgrade unlocked: current behavior stays the same.
+- Notes:
+  - Hook into `UpgradeManager` and check `UpgradeType.AsteroidTracker`.
+  - Make the gating obvious in controls/UI (e.g., ignore Y-cycle into Target Selection mode).
+
+### Ticket P1 — Cargo capacity should affect ship mass (and therefore acceleration and docking "collisions")
+- Problem: Cargo exists and has a capacity limit, but carrying resources does not change ship handling.
+- Goal:
+  - Add ship mass model: `shipMass = baseShipMass + cargoMassFactor * (shipIce + shipIron + shipRock)`.
+  - Make impulse + gravity acceleration use mass appropriately (likely scale impulse acceleration down with mass; gravity can remain mass-independent unless using force-based model).
+  - Update docking "collision" to consider mass (e.g., heavier ship might have a stronger "stick" to the asteroid, or require a stronger impulse to undock).
+- Notes:
+  - Keep it simple and tunable via `GameConfig` constants.
+  - Avoid adding allocations; just compute scalar mass each update.
+
+### Ticket U1 — Remove deprecated impulse cooldown / inaccuracy upgrades (cleanup)
+- Problem: DESIGN notes mark Impulse Cooldown and Impulse Inaccuracy upgrades as “remove”.
+- Goal:
+  - Remove `UpgradeType` entries (if present), their definitions in `UpgradeDefinitions`, and any UI exposure.
+  - Keep the actual gameplay mechanics (cooldown + inaccuracy) as baseline/tunable values in `GameConfig` unless also intentionally removed.
+- Acceptance:
+  - Build succeeds; no dead/unused upgrade plumbing.
 
 ---
 

@@ -143,23 +143,44 @@ namespace DustInterceptor
             int currentTimeScale = (int)_upgrades.Get(UpgradeType.MaxTimeScale).Definition.GetValue(_timeScaleIndex);
             _hud.Update(realDt, currentTimeScale);
 
+            // Gate: asteroid tracking requires the Asteroid Tracker unlock
+            bool hasAsteroidTracker = _upgrades.IsUnlocked(UpgradeType.AsteroidTracker);
+            if (!hasAsteroidTracker)
+            {
+                // Ensure we never show/compute target-selection state without the unlock.
+                if (_cameraMode == CameraMode.TargetSelection)
+                    _cameraMode = CameraMode.LockedToShip;
+
+                _cursorOffset = Vector2.Zero;
+                _hoveredAsteroidIndex = -1;
+                _world.ClearSelectedTarget();
+            }
+
             // ----- Input: camera mode toggle (flight mode only - Y is used for upgrade in mining) -----
             if (_world.Mode == GameMode.Flight && Pressed(gp.Buttons.Y, _gpPrev.Buttons.Y))
             {
-                // Cycle through camera modes: LockedToShip -> TargetSelection -> FreePan -> LockedToShip
-                _cameraMode = _cameraMode switch
+                if (!hasAsteroidTracker)
                 {
-                    CameraMode.LockedToShip => CameraMode.TargetSelection,
-                    CameraMode.TargetSelection => CameraMode.FreePan,
-                    CameraMode.FreePan => CameraMode.LockedToShip,
-                    _ => CameraMode.LockedToShip
-                };
+                    // Without the tracker, skip Target Selection mode entirely.
+                    _cameraMode = _cameraMode == CameraMode.FreePan ? CameraMode.LockedToShip : CameraMode.FreePan;
+                }
+                else
+                {
+                    // Cycle through camera modes: LockedToShip -> TargetSelection -> FreePan -> LockedToShip
+                    _cameraMode = _cameraMode switch
+                    {
+                        CameraMode.LockedToShip => CameraMode.TargetSelection,
+                        CameraMode.TargetSelection => CameraMode.FreePan,
+                        CameraMode.FreePan => CameraMode.LockedToShip,
+                        _ => CameraMode.LockedToShip
+                    };
 
-                // When entering target selection mode, reset cursor offset to zero (at ship)
-                if (_cameraMode == CameraMode.TargetSelection)
-                {
-                    _cursorOffset = Vector2.Zero;
-                    _hoveredAsteroidIndex = -1;
+                    // When entering target selection mode, reset cursor offset to zero (at ship)
+                    if (_cameraMode == CameraMode.TargetSelection)
+                    {
+                        _cursorOffset = Vector2.Zero;
+                        _hoveredAsteroidIndex = -1;
+                    }
                 }
             }
 
@@ -172,7 +193,7 @@ namespace DustInterceptor
             var rs = gp.ThumbSticks.Right;
             Vector2 stickInput = new Vector2(rs.X, -rs.Y);
 
-            if (_cameraMode == CameraMode.TargetSelection && _world.Mode == GameMode.Flight)
+            if (hasAsteroidTracker && _cameraMode == CameraMode.TargetSelection && _world.Mode == GameMode.Flight)
             {
                 // In target selection mode, move cursor offset relative to ship
                 if (stickInput.LengthSquared() > 0.01f)
@@ -351,7 +372,7 @@ namespace DustInterceptor
             DrawPath(_world.PredictedPath, _config.PredictedTrailColor, _config.PredictedTrailWidth);
 
             // Target predicted path
-            if (_world.SelectedTargetIndex >= 0)
+            if (_upgrades.IsUnlocked(UpgradeType.AsteroidTracker) && _world.SelectedTargetIndex >= 0)
             {
                 DrawPath(_world.TargetPredictedPath, _config.TargetPredictedPathColor, _config.TargetPredictedPathWidth);
             }
@@ -370,7 +391,7 @@ namespace DustInterceptor
             }
 
             // Highlight selected target asteroid
-            if (_world.SelectedTargetIndex >= 0 && _world.SelectedTargetIndex < _world.Asteroids.Length)
+            if (_upgrades.IsUnlocked(UpgradeType.AsteroidTracker) && _world.SelectedTargetIndex >= 0 && _world.SelectedTargetIndex < _world.Asteroids.Length)
             {
                 ref var target = ref _world.Asteroids[_world.SelectedTargetIndex];
                 if (!target.Disabled)
@@ -380,7 +401,7 @@ namespace DustInterceptor
             }
 
             // Draw cursor in target selection mode
-            if (_cameraMode == CameraMode.TargetSelection && _world.Mode == GameMode.Flight)
+            if (_upgrades.IsUnlocked(UpgradeType.AsteroidTracker) && _cameraMode == CameraMode.TargetSelection && _world.Mode == GameMode.Flight)
             {
                 // Calculate cursor world position from ship + offset
                 Vector2 cursorWorldPos = _world.Ship.Position + _cursorOffset;
@@ -403,7 +424,8 @@ namespace DustInterceptor
 
             // Draw impulse vector from ship with cooldown charge-up effect
             // Shows ship's forward direction (actual firing direction) scaled by aim magnitude
-            if (_world.Mode == GameMode.Flight && _impulseAim.LengthSquared() > 1f)
+            float maxImpulse = _upgrades.GetValue(UpgradeType.ImpulseStrength);
+            if (_world.Mode == GameMode.Flight && _impulseAim.LengthSquared() > (maxImpulse * maxImpulse) * 0.0025f)
             {
                 float cooldown = _upgrades.GetValue(UpgradeType.ImpulseCooldown);
                 float cooldownLeft = _world.ImpulseCooldownLeft;

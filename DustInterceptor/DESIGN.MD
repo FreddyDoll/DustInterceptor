@@ -33,9 +33,43 @@ prediction line:
 6. Mine / transfer materials / upgrade (planned)
 7. Undock and repeat (planned)
 
-Long-term goal: grow ship → install upgraded drive + collect fuel → escape system.
+grow ship → install upgraded drive + collect fuel → escape system.
 
----
+## Random Event System
+- Think a bit "Faster then light"
+- There are interaction screens at certain triggers
+  - Start of Game:
+	- "Ther was an accident and most of your ship is gone"
+	- "We will have to scavage some asteroids to build up again"
+	- -> OK
+  - After mining 10 iron
+	- "If only"
+
+## Story
+- An accident happened to a large ship
+- A small crew survived in a docked mining ship. but the systems are destroyed
+- Time to scavenge asteroids, upgrade the ship, and eventually escape the system!
+
+# Economy
+- Resources: 
+	- Ice, Iron, Rock (eventually more)
+-Upgrades:
+	- Think "Brotato"
+	- Lower Lavel stats (current system)
+	- Theres a set of Items that are bought with resources and give you a bonus/malus to Lower Lavel stats
+	- Instead of buying directly you get a shop at each asteroid with a random selection of items/upgrades (with some rules to avoid too much bad ones)
+- Current lower level stats with infos:
+	- Impulse Strength: how much velocity is added per impulse
+	- (remove) Impulse Cooldown: how long you have to wait between impulses
+	- (remove) Impulse Inaccuracy: how much random variation is added to the impulse direction
+    - Time Scale: how much faster time is passing
+	- Mining Speed: how fast resources are transferred while docked
+	- (seems not to be implemeted, the cargo should also increase the weight of the ship) Cargo Capacity: maximum amount of resources the ship can hold
+	- Prediction Length: how far ahead the trajectory preview simulates
+	- Zoom Range (Min Zoom Level): how far you can zoom out
+	- (Functionality implemented but not gated correctly) Asteroid Tracker (Unlock): enables selecting/tracking asteroid trajectories
+
+-- -
 
 ## Controls (As Implemented)
 - **Left Stick**: Aim impulse direction + strength
