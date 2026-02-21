@@ -6,7 +6,7 @@ A **2D top-down orbital mining** prototype: drift around a planet, plan impulses
 ---
 
 ## Visual Style
-Target vibe: **“Tiny Space Academy”**
+Target vibe: **"Tiny Space Academy"**
 Future Targets:
 Pixelshaders
 	Asteroids: Generated Texture with uneven outline, colorsheme based on material composition (ice/iron/rock)
@@ -56,7 +56,7 @@ Long-term goal: grow ship → install upgraded drive + collect fuel → escape s
 - Radius: `_planetRadius`
 - Gravity controlled via parameter `mu` (gravitational parameter)
 
-### Player Ship (“Mining Ship”)
+### Player Ship ("Mining Ship")
 Current:
 - Circle with `Position`, `Velocity`, `Radius`
 
@@ -108,13 +108,63 @@ Current gravity acceleration:
 - Avoid Box2D unless we truly need complex contacts/constraints
 - Target scale: 100_000 asteroids + stable orbits + fast orbit preview
 
-## Upgrades
-- MinZoomLevel (allows zooming out further)
-- Predictionlength (longer path preview)
-- Asteroid predictor (enables path of selected asteroid)
-	- Asteroid closest approach
-- Mining speed
-- Impulse upgrades:
-  - Strength
-  - Cooldown
-  - Accuracy
+---
+
+## Upgrade System (Implemented)
+
+### Architecture
+Data-driven upgrade system located in:
+- `enums/UpgradeType.cs` - All upgrade type identifiers
+- `enums/UpgradeCategory.cs` - Categories for UI grouping
+- `enums/ResourceType.cs` - Resource types (Ice, Iron, Rock)
+- `models/UpgradeDefinition.cs` - Blueprint class for upgrade configuration
+- `services/UpgradeManager.cs` - Central state + purchase logic
+- `services/UpgradeDefinitions.cs` - All upgrade configs in one place
+
+### Adding New Upgrades
+To add a new upgrade:
+1. Add entry to `UpgradeType` enum
+2. Register in `UpgradeDefinitions.RegisterAll()` with configuration
+3. (Optional) Use the value in game code via `_upgrades.GetValue(UpgradeType.XXX)`
+
+### Current Upgrades
+
+#### Propulsion
+| Type | Name | Effect | Cost Resource |
+|------|------|--------|---------------|
+| ImpulseStrength | Impulse | +5 per level | Iron |
+| ImpulseCooldown | Cooldown | -0.05s per level (min 0.15s) | Iron |
+| ImpulseAccuracy | Accuracy | -0.005 spread per level | Iron |
+
+#### Time Control
+| Type | Name | Effect | Cost Resource |
+|------|------|--------|---------------|
+| MaxTimeScale | Time Warp | Unlocks: x2→x4→x8→x16→x32→x64 | Iron |
+
+#### Mining
+| Type | Name | Effect | Cost Resource |
+|------|------|--------|---------------|
+| MiningSpeed | Mining | +10/s transfer rate per level | Iron |
+| CargoCapacity | Cargo | +500 capacity per level | Rock |
+
+#### Navigation
+| Type | Name | Effect | Cost Resource |
+|------|------|--------|---------------|
+| PredictionLength | Prediction | +30s preview per level | Ice |
+| MinZoomLevel | Zoom Range | Allows zooming out further | Ice |
+| AsteroidTracker | Tracker | Unlock: track asteroid trajectories | Iron |
+
+### Upgrade Features
+- **Exponential costs** - Each upgrade can have its own cost curve
+- **Multiple resource types** - Upgrades can cost Ice, Iron, or Rock
+- **Max levels** - Optional cap per upgrade
+- **Discrete values** - Support for tiered unlocks (like time scale)
+- **Feature unlocks** - Boolean unlocks (like AsteroidTracker)
+- **Dynamic UI** - Mining UI auto-generates from registered upgrades
+
+### Future Upgrade Ideas
+- FuelEfficiency - Reduce fuel consumption per impulse
+- ShieldStrength - Survive asteroid collisions
+- SensorRange - See asteroid composition at distance
+- AutoPilot - Automatic intercept calculation
+- WarpDrive - Escape the system (win condition)

@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using Myra;
@@ -11,9 +12,7 @@ namespace DustInterceptor
     public enum MiningAction
     {
         None,
-        UpgradeImpulse,
-        UpgradeTimeScale,
-        UpgradeMiningSpeed,
+        PurchaseUpgrade,
         Undock
     }
 
@@ -28,46 +27,31 @@ namespace DustInterceptor
         public float ShipIce;
         public float ShipIron;
         public float ShipRock;
-
-        // Upgrade info
-        public float CurrentMaxImpulse;
-        public float UpgradeImpulseCost;
-        public bool CanAffordImpulseUpgrade;
-
-        // Time scale upgrade info
-        public int CurrentMaxTimeScale;
-        public float UpgradeTimeScaleCost;
-        public bool CanAffordTimeScaleUpgrade;
-        public bool TimeScaleMaxedOut;
-
-        // Mining speed upgrade info
         public float CurrentMiningSpeed;
-        public float UpgradeMiningSpeedCost;
-        public bool CanAffordMiningSpeedUpgrade;
+
+        // Dynamic upgrade list
+        public List<UpgradeDisplayData> Upgrades;
     }
 
     /// <summary>
     /// Encapsulates Myra UI for the mining/docking screen.
+    /// Dynamically generates upgrade buttons from the upgrade system.
     /// </summary>
     public sealed class MiningUi
     {
-        private const int MenuItemCount = 4;
+        private const int MaxUpgradeSlots = 10;
 
         private readonly Desktop _desktop;
         private readonly Panel _panel;
         private readonly Label _asteroidInfoLabel;
         private readonly Label _shipCargoLabel;
-        private readonly Label _upgradeImpulseLabel;
-        private readonly Label _upgradeTimeScaleLabel;
-        private readonly Label _upgradeMiningSpeedLabel;
         private readonly Label _miningStatusLabel;
+        private readonly VerticalStackPanel _upgradeStack;
         private readonly float _fontScale;
 
         private int _menuSelection;
-        private bool _canAffordImpulseUpgrade;
-        private bool _canAffordTimeScaleUpgrade;
-        private bool _canAffordMiningSpeedUpgrade;
-        private bool _timeScaleMaxedOut;
+        private int _menuItemCount;
+        private List<UpgradeDisplayData> _currentUpgrades = new();
 
         public MiningUi(Game game, float uiScale = 1f)
         {
@@ -155,33 +139,33 @@ namespace DustInterceptor
                 Scale = new Vector2(_fontScale)
             });
 
-            // Upgrade info labels
-            _upgradeImpulseLabel = new Label
+            // Upgrades section header
+            stack.Widgets.Add(new Label
             {
-                Text = "Impulse: 10  |  Cost: 50 Iron",
+                Text = "UPGRADES",
                 TextColor = new Color(150, 150, 200),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Scale = new Vector2(_fontScale)
-            };
-            stack.Widgets.Add(_upgradeImpulseLabel);
+            });
 
-            _upgradeTimeScaleLabel = new Label
+            // Dynamic upgrade stack
+            _upgradeStack = new VerticalStackPanel { Spacing = S(8) };
+            
+            // Pre-create upgrade slot labels
+            for (int i = 0; i < MaxUpgradeSlots; i++)
             {
-                Text = "Max Warp: x4  |  Cost: 100 Iron",
-                TextColor = new Color(150, 150, 200),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Scale = new Vector2(_fontScale)
-            };
-            stack.Widgets.Add(_upgradeTimeScaleLabel);
-
-            _upgradeMiningSpeedLabel = new Label
-            {
-                Text = "Mining: 10/s  |  Cost: 75 Iron",
-                TextColor = new Color(150, 150, 200),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Scale = new Vector2(_fontScale)
-            };
-            stack.Widgets.Add(_upgradeMiningSpeedLabel);
+                var upgradeLabel = new Label
+                {
+                    Id = $"upgrade_{i}",
+                    Text = "",
+                    TextColor = Color.White,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Scale = new Vector2(_fontScale),
+                    Visible = false
+                };
+                _upgradeStack.Widgets.Add(upgradeLabel);
+            }
+            stack.Widgets.Add(_upgradeStack);
 
             // Separator
             stack.Widgets.Add(new Label
@@ -192,55 +176,21 @@ namespace DustInterceptor
                 Scale = new Vector2(_fontScale)
             });
 
-            // Menu options (controller-friendly, highlight based on selection)
-            var menuStack = new VerticalStackPanel { Spacing = S(12) };
-
-            var upgradeImpulseBtn = new Label
-            {
-                Id = "menu_0",
-                Text = "> [X] Upgrade Impulse",
-                TextColor = Color.White,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Scale = new Vector2(_fontScale)
-            };
-            menuStack.Widgets.Add(upgradeImpulseBtn);
-
-            var upgradeTimeScaleBtn = new Label
-            {
-                Id = "menu_1",
-                Text = "  [Y] Upgrade Time Warp",
-                TextColor = Color.White,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Scale = new Vector2(_fontScale)
-            };
-            menuStack.Widgets.Add(upgradeTimeScaleBtn);
-
-            var upgradeMiningBtn = new Label
-            {
-                Id = "menu_2",
-                Text = "  [A] Upgrade Mining Speed",
-                TextColor = Color.White,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Scale = new Vector2(_fontScale)
-            };
-            menuStack.Widgets.Add(upgradeMiningBtn);
-
+            // Undock button (always last)
             var undockBtn = new Label
             {
-                Id = "menu_3",
+                Id = "undock_btn",
                 Text = "  [B] Undock",
                 TextColor = Color.White,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Scale = new Vector2(_fontScale)
             };
-            menuStack.Widgets.Add(undockBtn);
-
-            stack.Widgets.Add(menuStack);
+            stack.Widgets.Add(undockBtn);
 
             // Controls hint
             stack.Widgets.Add(new Label
             {
-                Text = "\nD-Pad Up/Down to select",
+                Text = "\nD-Pad Up/Down to select, A to buy",
                 TextColor = new Color(100, 100, 120),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Scale = new Vector2(_fontScale)
@@ -296,61 +246,80 @@ namespace DustInterceptor
                 $"  Iron: {data.ShipIron:F1}\n" +
                 $"  Rock: {data.ShipRock:F1}";
 
-            _upgradeImpulseLabel.Text = $"Impulse: {data.CurrentMaxImpulse:F0}  |  Cost: {data.UpgradeImpulseCost:F0} Iron";
+            // Update upgrade list
+            _currentUpgrades = data.Upgrades ?? new List<UpgradeDisplayData>();
+            _menuItemCount = _currentUpgrades.Count + 1; // +1 for undock
 
-            if (data.TimeScaleMaxedOut)
+            // Update upgrade labels
+            for (int i = 0; i < MaxUpgradeSlots; i++)
             {
-                _upgradeTimeScaleLabel.Text = $"Max Warp: x{data.CurrentMaxTimeScale}  |  MAXED OUT";
-                _upgradeTimeScaleLabel.TextColor = new Color(100, 200, 100);
-            }
-            else
-            {
-                _upgradeTimeScaleLabel.Text = $"Max Warp: x{data.CurrentMaxTimeScale}  |  Cost: {data.UpgradeTimeScaleCost:F0} Iron";
-                _upgradeTimeScaleLabel.TextColor = new Color(150, 150, 200);
+                var label = _upgradeStack.Widgets[i] as Label;
+                if (label == null) continue;
+
+                if (i < _currentUpgrades.Count)
+                {
+                    var upgrade = _currentUpgrades[i];
+                    label.Visible = true;
+                    
+                    string valueDisplay = upgrade.IsUnlock 
+                        ? (upgrade.IsUnlocked ? "UNLOCKED" : "LOCKED")
+                        : $"{upgrade.CurrentValue:F0}";
+                    
+                    string costDisplay = upgrade.CanUpgrade 
+                        ? $"{upgrade.NextCost:F0} {upgrade.CostResource}"
+                        : "MAXED";
+
+                    label.Text = $"{upgrade.Name}: {valueDisplay}  |  {costDisplay}";
+                }
+                else
+                {
+                    label.Visible = false;
+                }
             }
 
-            _upgradeMiningSpeedLabel.Text = $"Mining: {data.CurrentMiningSpeed:F0}/s  |  Cost: {data.UpgradeMiningSpeedCost:F0} Iron";
-
-            _canAffordImpulseUpgrade = data.CanAffordImpulseUpgrade;
-            _canAffordTimeScaleUpgrade = data.CanAffordTimeScaleUpgrade;
-            _canAffordMiningSpeedUpgrade = data.CanAffordMiningSpeedUpgrade;
-            _timeScaleMaxedOut = data.TimeScaleMaxedOut;
+            // Clamp selection if list shrunk
+            if (_menuSelection >= _menuItemCount)
+                _menuSelection = _menuItemCount - 1;
 
             UpdateMenuHighlight();
         }
 
         /// <summary>
-        /// Handles input and returns any triggered action.
+        /// Handles input and returns any triggered action plus the upgrade type if applicable.
         /// Call this each frame when the UI is visible.
         /// </summary>
-        public MiningAction HandleInput(GamePadState gp, GamePadState gpPrev)
+        public (MiningAction action, UpgradeType upgradeType) HandleInput(GamePadState gp, GamePadState gpPrev)
         {
             // Menu navigation (D-Pad)
             if (Pressed(gp.DPad.Up, gpPrev.DPad.Up))
             {
-                _menuSelection = (_menuSelection - 1 + MenuItemCount) % MenuItemCount;
+                _menuSelection = (_menuSelection - 1 + _menuItemCount) % _menuItemCount;
                 UpdateMenuHighlight();
             }
             if (Pressed(gp.DPad.Down, gpPrev.DPad.Down))
             {
-                _menuSelection = (_menuSelection + 1) % MenuItemCount;
+                _menuSelection = (_menuSelection + 1) % _menuItemCount;
                 UpdateMenuHighlight();
             }
 
-            // Menu actions
-            if (Pressed(gp.Buttons.X, gpPrev.Buttons.X))
-                return MiningAction.UpgradeImpulse;
-
-            if (Pressed(gp.Buttons.Y, gpPrev.Buttons.Y))
-                return MiningAction.UpgradeTimeScale;
-
+            // Purchase upgrade (A button)
             if (Pressed(gp.Buttons.A, gpPrev.Buttons.A))
-                return MiningAction.UpgradeMiningSpeed;
+            {
+                if (_menuSelection < _currentUpgrades.Count)
+                {
+                    var upgrade = _currentUpgrades[_menuSelection];
+                    if (upgrade.CanUpgrade && upgrade.CanAfford)
+                    {
+                        return (MiningAction.PurchaseUpgrade, upgrade.Type);
+                    }
+                }
+            }
 
+            // Undock (B button - always works)
             if (Pressed(gp.Buttons.B, gpPrev.Buttons.B))
-                return MiningAction.Undock;
+                return (MiningAction.Undock, default);
 
-            return MiningAction.None;
+            return (MiningAction.None, default);
         }
 
         /// <summary>
@@ -363,41 +332,48 @@ namespace DustInterceptor
 
         private void UpdateMenuHighlight()
         {
-            for (int i = 0; i < MenuItemCount; i++)
+            // Update upgrade labels
+            for (int i = 0; i < _currentUpgrades.Count && i < MaxUpgradeSlots; i++)
             {
-                var label = _panel.FindChildById($"menu_{i}") as Label;
-                if (label != null)
+                var label = _upgradeStack.Widgets[i] as Label;
+                if (label == null) continue;
+
+                var upgrade = _currentUpgrades[i];
+                bool selected = (i == _menuSelection);
+                string prefix = selected ? "> " : "  ";
+
+                string valueDisplay = upgrade.IsUnlock 
+                    ? (upgrade.IsUnlocked ? "UNLOCKED" : "LOCKED")
+                    : $"{upgrade.CurrentValue:F0}";
+                
+                string costDisplay = upgrade.CanUpgrade 
+                    ? $"{upgrade.NextCost:F0} {upgrade.CostResource}"
+                    : "MAXED";
+
+                label.Text = $"{prefix}{upgrade.Name}: {valueDisplay}  |  {costDisplay}";
+
+                // Color based on affordability
+                if (!upgrade.CanUpgrade)
                 {
-                    bool selected = (i == _menuSelection);
-                    string prefix = selected ? "> " : "  ";
-                    string suffix = i switch
-                    {
-                        0 => "[X] Upgrade Impulse",
-                        1 => "[Y] Upgrade Time Warp",
-                        2 => "[A] Upgrade Mining Speed",
-                        3 => "[B] Undock",
-                        _ => ""
-                    };
-                    label.Text = prefix + suffix;
-
-                    // Determine if button should be grayed out
-                    bool grayedOut = i switch
-                    {
-                        0 => !_canAffordImpulseUpgrade,
-                        1 => !_canAffordTimeScaleUpgrade || _timeScaleMaxedOut,
-                        2 => !_canAffordMiningSpeedUpgrade,
-                        _ => false
-                    };
-
-                    if (grayedOut)
-                    {
-                        label.TextColor = new Color(128, 128, 128);
-                    }
-                    else
-                    {
-                        label.TextColor = selected ? new Color(100, 255, 150) : Color.White;
-                    }
+                    label.TextColor = new Color(100, 200, 100); // Green for maxed
                 }
+                else if (!upgrade.CanAfford)
+                {
+                    label.TextColor = new Color(128, 128, 128); // Gray for can't afford
+                }
+                else
+                {
+                    label.TextColor = selected ? new Color(100, 255, 150) : Color.White;
+                }
+            }
+
+            // Update undock button
+            var undockLabel = _panel.FindChildById("undock_btn") as Label;
+            if (undockLabel != null)
+            {
+                bool undockSelected = (_menuSelection == _menuItemCount - 1);
+                undockLabel.Text = (undockSelected ? "> " : "  ") + "[B] Undock";
+                undockLabel.TextColor = undockSelected ? new Color(100, 255, 150) : Color.White;
             }
         }
 

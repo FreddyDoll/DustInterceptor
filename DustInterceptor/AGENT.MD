@@ -70,21 +70,9 @@ We are currently past the Orbit Sandbox and have:
 
 ## Next Tickets (Agent Mode – do one at a time)
 
-### Ticket U1 — Add first real upgrade (MaxImpulse)
-**Goal:** Add an upgrade purchasable in Mining UI.
-- Cost in materials (start with Iron)
-- Upgrade effect: `MaxImpulse += 200` (or similar)
-- UI shows current value and cost
-Acceptance:
-- Buying reduces cargo and increases max impulse
-- Can’t buy if insufficient cargo
-
-### Ticket U2 — Upgrade cooldown reduction
-**Goal:** Buy cooldown reduction.
-- `ImpulseCooldown = max(0.1, ImpulseCooldown - 0.05)`
-- Cost in materials
-Acceptance:
-- Works with existing cooldown code
+### Ticket V1 - Backround Grid
+**Goal:** A light gray Radial static grid centered on the planet to help visualize orbits and movement.
+- Draw concentric circles at regular intervals (e.g., every 100 units) and radial lines every 30 degrees.
 
 ### Ticket G1 — Target selection (later)
 **Goal:** Select asteroid and display target orbit/path.

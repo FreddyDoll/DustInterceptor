@@ -26,28 +26,23 @@ namespace DustInterceptor
         // Simulation (extracted)
         private WorldSim _world = null!;
 
+        // Upgrades
+        private UpgradeManager _upgrades = null!;
+
         // UI
         private int _resolutionScale = 2;
         private MiningUi _miningUi = null!;
         private Hud _hud = null!;
 
         // Time scale state
-        private int _currentMaxScaleIndex;
         private int _timeScaleIndex = 0;
-
-        // Impulse upgrade state
-        private int _impulseUpgradeLevel = 0;
-
-        // Mining speed upgrade state
-        private int _miningSpeedUpgradeLevel = 0;
 
         // Input state
         private GamePadState _gpPrev;
         private bool _cameraLocked = true;
 
-        // Impulse state (upgradeable)
+        // Impulse state
         private Vector2 _impulseAim;
-        private float _maxImpulse;
 
         public OrbitSandboxGame()
         {
@@ -67,12 +62,13 @@ namespace DustInterceptor
             // Create world simulation with default config
             _world = new WorldSim(new WorldSimConfig());
 
-            // Initialize mining transfer rate
-            _world.SetMiningTransferRate(_config.GetMiningTransferRate(_miningSpeedUpgradeLevel));
+            // Initialize upgrade system
+            _upgrades = new UpgradeManager();
+            UpgradeDefinitions.RegisterAll(_upgrades);
 
-            // Initialize upgradeable stats from config
-            _maxImpulse = _config.StartingMaxImpulse;
-            _currentMaxScaleIndex = _config.StartingMaxTimeScaleIndex;
+            // Initialize upgradeable values from upgrade system
+            _world.SetMiningTransferRate(_upgrades.GetValue(UpgradeType.MiningSpeed));
+            _world.SetPredictionHorizon(_upgrades.GetValue(UpgradeType.PredictionLength));
 
             // Camera defaults
             _camera.Zoom = _config.CameraZoomDefault;
@@ -108,22 +104,27 @@ namespace DustInterceptor
 
             float realDt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
+            // Get current max time scale index from upgrades
+            int maxTimeScaleIndex = _upgrades.GetLevel(UpgradeType.MaxTimeScale);
+
             // ----- Input: time scale -----
             if (Pressed(gp.Buttons.RightShoulder, _gpPrev.Buttons.RightShoulder))
-                _timeScaleIndex = Math.Min(_timeScaleIndex + 1, _currentMaxScaleIndex);
+                _timeScaleIndex = Math.Min(_timeScaleIndex + 1, maxTimeScaleIndex);
             if (Pressed(gp.Buttons.LeftShoulder, _gpPrev.Buttons.LeftShoulder))
                 _timeScaleIndex = Math.Max(_timeScaleIndex - 1, 0);
 
             // ----- Update HUD -----
-            _hud.Update(realDt, _config.TimeScales[_timeScaleIndex]);
+            int currentTimeScale = (int)_upgrades.Get(UpgradeType.MaxTimeScale).Definition.GetValue(_timeScaleIndex);
+            _hud.Update(realDt, currentTimeScale);
 
             // ----- Input: camera lock (flight mode only - Y is used for upgrade in mining) -----
             if (_world.Mode == GameMode.Flight && Pressed(gp.Buttons.Y, _gpPrev.Buttons.Y))
                 _cameraLocked = true;
 
-            // ----- Input: zoom (LT/RT) -----
+            // ----- Input: zoom (LT/RT) with upgradeable min zoom -----
+            float minZoom = _upgrades.GetValue(UpgradeType.MinZoomLevel, _config.CameraZoomMin);
             float zoomDelta = (gp.Triggers.Right - gp.Triggers.Left) * _config.CameraZoomSpeed * realDt;
-            _camera.Zoom = Clamp(_camera.Zoom * (1f + zoomDelta), _config.CameraZoomMin, _config.CameraZoomMax);
+            _camera.Zoom = Clamp(_camera.Zoom * (1f + zoomDelta), minZoom, _config.CameraZoomMax);
 
             // ----- Input: free pan (right stick) -----
             var rs = gp.ThumbSticks.Right;
@@ -154,6 +155,11 @@ namespace DustInterceptor
 
         private void UpdateFlightMode(GamePadState gp, float realDt)
         {
+            // Get current upgrade values
+            float maxImpulse = _upgrades.GetValue(UpgradeType.ImpulseStrength);
+            float inaccuracy = _upgrades.GetValue(UpgradeType.ImpulseAccuracy);
+            float cooldown = _upgrades.GetValue(UpgradeType.ImpulseCooldown);
+
             // ----- Input: impulse aim (left stick) -----
             var ls = gp.ThumbSticks.Left;
             Vector2 aim = new Vector2(ls.X, -ls.Y);
@@ -161,15 +167,15 @@ namespace DustInterceptor
             aim = (aimMag > 0.001f) ? Vector2.Normalize(aim) : Vector2.Zero;
 
             float strength01 = aimMag * aimMag;
-            _impulseAim = aim * (strength01 * _maxImpulse);
+            _impulseAim = aim * (strength01 * maxImpulse);
 
             // ----- Determine if firing impulse -----
             bool fireImpulse = Pressed(gp.Buttons.X, _gpPrev.Buttons.X);
 
             // ----- Update simulation -----
-            int timeScale = _config.TimeScales[_timeScaleIndex];
-            _world.UpdateFlight(realDt, timeScale, _impulseAim, fireImpulse, _maxImpulse, 
-                _config.ImpulseInaccuracy, _config.ImpulseCooldown);
+            int currentTimeScale = (int)_upgrades.Get(UpgradeType.MaxTimeScale).Definition.GetValue(_timeScaleIndex);
+            _world.UpdateFlight(realDt, currentTimeScale, _impulseAim, fireImpulse, maxImpulse, 
+                inaccuracy, cooldown);
 
             // Hide mining UI
             _miningUi.Hide();
@@ -181,15 +187,20 @@ namespace DustInterceptor
             if (!_miningUi.IsVisible)
                 _miningUi.Show();
 
-            bool isTimeScaleMaxedOut = _currentMaxScaleIndex >= _config.TimeScales.Length - 1;
-            float timeScaleCost = _config.GetTimeScaleUpgradeCost(_currentMaxScaleIndex);
-            float impulseCost = _config.GetImpulseUpgradeCost(_impulseUpgradeLevel);
-            float miningSpeedCost = _config.GetMiningSpeedUpgradeCost(_miningSpeedUpgradeLevel);
-            float currentMiningSpeed = _config.GetMiningTransferRate(_miningSpeedUpgradeLevel);
+            // Helper to get resources for upgrade system
+            float GetResource(ResourceType r) => _world.GetResource(r);
 
             if (_world.DockedAsteroidIndex >= 0 && _world.DockedAsteroidIndex < _world.Asteroids.Length)
             {
                 ref var asteroid = ref _world.Asteroids[_world.DockedAsteroidIndex];
+                
+                // Build upgrade display data list
+                var upgradeDataList = new List<UpgradeDisplayData>();
+                foreach (var state in _upgrades.GetAvailableUpgrades())
+                {
+                    upgradeDataList.Add(_upgrades.GetDisplayData(state.Definition.Type, GetResource));
+                }
+
                 _miningUi.UpdateData(new MiningUiData
                 {
                     AsteroidIce = asteroid.Ice,
@@ -198,41 +209,27 @@ namespace DustInterceptor
                     ShipIce = _world.ShipIce,
                     ShipIron = _world.ShipIron,
                     ShipRock = _world.ShipRock,
-                    CurrentMaxImpulse = _maxImpulse,
-                    UpgradeImpulseCost = impulseCost,
-                    CanAffordImpulseUpgrade = _world.ShipIron >= impulseCost,
-                    CurrentMaxTimeScale = _config.TimeScales[_currentMaxScaleIndex],
-                    UpgradeTimeScaleCost = timeScaleCost,
-                    CanAffordTimeScaleUpgrade = _world.ShipIron >= timeScaleCost,
-                    TimeScaleMaxedOut = isTimeScaleMaxedOut,
-                    CurrentMiningSpeed = currentMiningSpeed,
-                    UpgradeMiningSpeedCost = miningSpeedCost,
-                    CanAffordMiningSpeedUpgrade = _world.ShipIron >= miningSpeedCost
+                    CurrentMiningSpeed = _upgrades.GetValue(UpgradeType.MiningSpeed),
+                    Upgrades = upgradeDataList
                 });
             }
 
             // Handle UI input
-            var action = _miningUi.HandleInput(gp, _gpPrev);
+            var (action, upgradeType) = _miningUi.HandleInput(gp, _gpPrev);
             switch (action)
             {
-                case MiningAction.UpgradeImpulse:
-                    if (_world.TrySpendIron(impulseCost))
+                case MiningAction.PurchaseUpgrade:
+                    if (_upgrades.TryPurchase(upgradeType, GetResource, _world.TrySpendResource))
                     {
-                        _maxImpulse += _config.UpgradeImpulseAmount;
-                        _impulseUpgradeLevel++;
-                    }
-                    break;
-                case MiningAction.UpgradeTimeScale:
-                    if (!isTimeScaleMaxedOut && _world.TrySpendIron(timeScaleCost))
-                    {
-                        _currentMaxScaleIndex++;
-                    }
-                    break;
-                case MiningAction.UpgradeMiningSpeed:
-                    if (_world.TrySpendIron(miningSpeedCost))
-                    {
-                        _miningSpeedUpgradeLevel++;
-                        _world.SetMiningTransferRate(_config.GetMiningTransferRate(_miningSpeedUpgradeLevel));
+                        // Update values that depend on upgrades
+                        if (upgradeType == UpgradeType.MiningSpeed)
+                        {
+                            _world.SetMiningTransferRate(_upgrades.GetValue(UpgradeType.MiningSpeed));
+                        }
+                        else if (upgradeType == UpgradeType.PredictionLength)
+                        {
+                            _world.SetPredictionHorizon(_upgrades.GetValue(UpgradeType.PredictionLength));
+                        }
                     }
                     break;
                 case MiningAction.Undock:
@@ -242,15 +239,8 @@ namespace DustInterceptor
             }
 
             // ----- Update simulation (mining mode with auto-transfer) -----
-            int timeScale = _config.TimeScales[_timeScaleIndex];
-            bool miningComplete = _world.UpdateMining(realDt, timeScale);
-
-            // Auto-undock when asteroid is depleted
-            if (miningComplete)
-            {
-                _world.Undock();
-                _miningUi.Hide();
-            }
+            int currentTimeScale = (int)_upgrades.Get(UpgradeType.MaxTimeScale).Definition.GetValue(_timeScaleIndex);
+            _world.UpdateMining(realDt, currentTimeScale);
 
             // Clear impulse aim while docked
             _impulseAim = Vector2.Zero;
@@ -268,6 +258,9 @@ namespace DustInterceptor
                 rasterizerState: RasterizerState.CullNone,
                 effect: null,
                 transformMatrix: _camera.GetViewMatrix(GraphicsDevice));
+
+            // Background grid (drawn first, behind everything)
+            DrawBackgroundGrid();
 
             // Planet
             DrawCircleWorld(_world.Planet.Position, _world.Planet.Radius, _config.PlanetColor);
@@ -294,11 +287,37 @@ namespace DustInterceptor
                 DrawCircleWorld(asteroid.Position, asteroid.Radius + _config.DockedHighlightPadding, _config.DockedHighlightColor);
             }
 
-            // Draw impulse vector from ship
+            // Draw impulse vector from ship with cooldown charge-up effect
             if (_world.Mode == GameMode.Flight && _impulseAim.LengthSquared() > 1f)
             {
-                Vector2 end = _world.Ship.Position + _impulseAim * _config.ImpulseAimScale;
-                DrawLineWorld(_world.Ship.Position, end, _config.ImpulseAimColor, _config.ImpulseAimWidth);
+                float cooldown = _upgrades.GetValue(UpgradeType.ImpulseCooldown);
+                float cooldownLeft = _world.ImpulseCooldownLeft;
+                
+                // Calculate charge progress (0 = just fired, 1 = fully charged)
+                float chargeProgress = cooldown > 0.001f 
+                    ? 1f - (cooldownLeft / cooldown) 
+                    : 1f;
+                chargeProgress = Clamp(chargeProgress, 0f, 1f);
+
+                Vector2 fullEnd = _world.Ship.Position + _impulseAim * _config.ImpulseAimScale;
+                
+                if (chargeProgress >= 1f)
+                {
+                    // Fully charged - bright color, full length
+                    DrawLineWorld(_world.Ship.Position, fullEnd, _config.ImpulseAimReadyColor, _config.ImpulseAimWidth);
+                }
+                else
+                {
+                    // Charging - draw dim background line at full length
+                    DrawLineWorld(_world.Ship.Position, fullEnd, _config.ImpulseAimChargingColor, _config.ImpulseAimWidth);
+                    
+                    // Draw charging portion in ready color, length based on progress
+                    if (chargeProgress > 0.01f)
+                    {
+                        Vector2 chargeEnd = _world.Ship.Position + _impulseAim * _config.ImpulseAimScale * chargeProgress;
+                        DrawLineWorld(_world.Ship.Position, chargeEnd, _config.ImpulseAimReadyColor, _config.ImpulseAimWidth);
+                    }
+                }
             }
 
             _spriteBatch.End();
@@ -311,6 +330,53 @@ namespace DustInterceptor
         }
 
         #region Rendering helpers
+        
+        /// <summary>
+        /// Draws a radial grid centered on the planet to help visualize orbits.
+        /// Includes concentric circles and radial lines.
+        /// </summary>
+        private void DrawBackgroundGrid()
+        {
+            Vector2 center = _world.Planet.Position;
+            
+            // Draw concentric circles
+            for (float radius = _config.GridCircleSpacing; radius <= _config.GridMaxRadius; radius += _config.GridCircleSpacing)
+            {
+                DrawCircleOutline(center, radius, _config.GridColor, _config.GridLineWidth);
+            }
+
+            // Draw radial lines
+            float angleStep = MathF.PI * 2f / _config.GridRadialLineCount;
+            for (int i = 0; i < _config.GridRadialLineCount; i++)
+            {
+                float angle = i * angleStep;
+                Vector2 direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
+                Vector2 lineEnd = center + direction * _config.GridMaxRadius;
+                DrawLineWorld(center, lineEnd, _config.GridColor, _config.GridLineWidth);
+            }
+        }
+
+        /// <summary>
+        /// Draws a circle outline (ring) using line segments.
+        /// </summary>
+        private void DrawCircleOutline(Vector2 center, float radius, Color color, float thickness)
+        {
+            // Use enough segments for a smooth circle at any zoom level
+            int segments = Math.Max(32, (int)(radius / 500f));
+            segments = Math.Min(segments, 256); // Cap for performance
+            
+            float angleStep = MathF.PI * 2f / segments;
+            Vector2 prevPoint = center + new Vector2(radius, 0);
+            
+            for (int i = 1; i <= segments; i++)
+            {
+                float angle = i * angleStep;
+                Vector2 point = center + new Vector2(MathF.Cos(angle) * radius, MathF.Sin(angle) * radius);
+                DrawLineWorld(prevPoint, point, color, thickness);
+                prevPoint = point;
+            }
+        }
+
         private void DrawAsteroids()
         {
             for (int i = 0; i < _world.Asteroids.Length; i++)

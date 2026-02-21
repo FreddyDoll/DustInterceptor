@@ -42,6 +42,7 @@ namespace DustInterceptor
 
         // Prediction
         private readonly List<Vector2> _predictedPath = new();
+        private float _predictionHorizonSeconds;
 
         // Impulse state
         private float _impulseCooldownLeft;
@@ -61,6 +62,14 @@ namespace DustInterceptor
         public void SetMiningTransferRate(float rate)
         {
             _miningTransferRate = rate;
+        }
+
+        /// <summary>
+        /// Sets the prediction horizon in seconds.
+        /// </summary>
+        public void SetPredictionHorizon(float seconds)
+        {
+            _predictionHorizonSeconds = seconds;
         }
 
         private void Initialize()
@@ -170,6 +179,47 @@ namespace DustInterceptor
         // ===== Cargo operations =====
 
         /// <summary>
+        /// Gets the amount of a specific resource type in ship cargo.
+        /// </summary>
+        public float GetResource(ResourceType resource)
+        {
+            return resource switch
+            {
+                ResourceType.Ice => _shipIce,
+                ResourceType.Iron => _shipIron,
+                ResourceType.Rock => _shipRock,
+                _ => 0f
+            };
+        }
+
+        /// <summary>
+        /// Attempts to spend the specified amount of a resource. Returns true if successful.
+        /// </summary>
+        public bool TrySpendResource(ResourceType resource, float amount)
+        {
+            return resource switch
+            {
+                ResourceType.Ice => TrySpendIce(amount),
+                ResourceType.Iron => TrySpendIron(amount),
+                ResourceType.Rock => TrySpendRock(amount),
+                _ => false
+            };
+        }
+
+        /// <summary>
+        /// Attempts to spend the specified amount of ice. Returns true if successful.
+        /// </summary>
+        public bool TrySpendIce(float amount)
+        {
+            if (_shipIce >= amount)
+            {
+                _shipIce -= amount;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
         /// Attempts to spend the specified amount of iron. Returns true if successful.
         /// </summary>
         public bool TrySpendIron(float amount)
@@ -177,6 +227,19 @@ namespace DustInterceptor
             if (_shipIron >= amount)
             {
                 _shipIron -= amount;
+                return true;
+            }
+            return false;
+        }
+
+        /// <summary>
+        /// Attempts to spend the specified amount of rock. Returns true if successful.
+        /// </summary>
+        public bool TrySpendRock(float amount)
+        {
+            if (_shipRock >= amount)
+            {
+                _shipRock -= amount;
                 return true;
             }
             return false;
@@ -202,9 +265,9 @@ namespace DustInterceptor
                 }
             }
 
-            // Cooldown
+            // Cooldown (scales with time warp)
             if (_impulseCooldownLeft > 0f)
-                _impulseCooldownLeft = Math.Max(0f, _impulseCooldownLeft - realDt);
+                _impulseCooldownLeft = Math.Max(0f, _impulseCooldownLeft - realDt * timeScale);
 
             // Apply impulse
             if (fireImpulse && _impulseCooldownLeft <= 0f && impulseAim.LengthSquared() > 0.001f)
@@ -245,19 +308,16 @@ namespace DustInterceptor
 
         /// <summary>
         /// Updates the simulation in mining mode.
-        /// Returns true if mining is complete and auto-undock should occur.
         /// </summary>
-        public bool UpdateMining(float realDt, int timeScale)
+        public void UpdateMining(float realDt, int timeScale)
         {
-            bool miningComplete = false;
-
-            // Auto-transfer materials at 1x speed (realDt, not scaled)
+            // Auto-transfer materials (scales with time warp)
             if (_dockedAsteroidIndex >= 0 && _dockedAsteroidIndex < _asteroids.Length)
             {
                 ref var asteroid = ref _asteroids[_dockedAsteroidIndex];
                 
-                // Transfer at fixed rate, always 1x speed
-                float transferAmount = _miningTransferRate * realDt;
+                // Transfer at rate scaled by time warp
+                float transferAmount = _miningTransferRate * realDt * timeScale;
                 
                 // Calculate how much to transfer from each material type proportionally
                 float totalOnAsteroid = asteroid.TotalMaterials;
@@ -279,16 +339,6 @@ namespace DustInterceptor
                     _shipIce += iceTransfer;
                     _shipIron += ironTransfer;
                     _shipRock += rockTransfer;
-                }
-
-                // Check if asteroid is depleted
-                if (asteroid.IsDepleted)
-                {
-                    asteroid.Ice = 0f;
-                    asteroid.Iron = 0f;
-                    asteroid.Rock = 0f;
-                    asteroid.Disabled = true;
-                    miningComplete = true;
                 }
 
                 // Ship sticks to asteroid
@@ -316,8 +366,6 @@ namespace DustInterceptor
 
             // Clear prediction while docked
             _predictedPath.Clear();
-
-            return miningComplete;
         }
 
         /// <summary>
@@ -334,9 +382,7 @@ namespace DustInterceptor
             {
                 ref var asteroid = ref _asteroids[_dockedAsteroidIndex];
 
-                Vector2 pushDir = Vector2.Normalize(_ship.Position - _planet.Position);
-                float pushSpeed = 50f;
-                _ship.Velocity = asteroid.Velocity + pushDir * pushSpeed;
+                _ship.Velocity = asteroid.Velocity;
             }
 
             _dockedAsteroidIndex = -1;
@@ -395,7 +441,7 @@ namespace DustInterceptor
             Vector2 pos = _ship.Position;
             Vector2 vel = _ship.Velocity + impulseAim;
 
-            float dt = _config.PredictHorizonSeconds / _config.PredictSteps;
+            float dt = _predictionHorizonSeconds / _config.PredictSteps;
 
             for (int i = 0; i <= _config.PredictSteps; i++)
             {
@@ -458,8 +504,19 @@ namespace DustInterceptor
             _ignoreAsteroidIndex = -1; // Clear ignore when docking to new asteroid
 
             ref var asteroid = ref _asteroids[asteroidIndex];
+
+            // Calculate perfectly inelastic collision velocity
+            // v_final = (m_ship * v_ship + m_asteroid * v_asteroid) / (m_ship + m_asteroid)
+            float shipMass = _config.ShipMass;
+            float asteroidMass = asteroid.Mass;
+            float totalMass = shipMass + asteroidMass;
+
+            Vector2 combinedVelocity = (shipMass * _ship.Velocity + asteroidMass * asteroid.Velocity) / totalMass;
+
+            // Apply combined velocity to both bodies
+            asteroid.Velocity = combinedVelocity;
+            _ship.Velocity = combinedVelocity;
             _ship.Position = asteroid.Position;
-            _ship.Velocity = asteroid.Velocity;
 
             _shipTrail.Clear();
         }

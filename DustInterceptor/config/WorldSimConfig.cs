@@ -15,6 +15,10 @@ namespace DustInterceptor
         // Ship
         public float ShipRadius = 60f;
         public float SpawnRadius = 100_000f;
+        /// <summary>
+        /// Ship mass used for inelastic collision calculations during docking.
+        /// </summary>
+        public float ShipMass = 1.0f;
 
         // Asteroid Belts
         public AsteroidBeltConfig[] AsteroidBelts =
@@ -40,7 +44,7 @@ namespace DustInterceptor
                 OuterRadius = 110_000f,
                 RadiusMin = 5f,
                 RadiusMax = 60f,
-                OrbitVariation = 0.03f,
+                OrbitVariation = 0.01f,
                 IceBias = 0.33f,
                 IronBias = 0.33f,
                 RockBias = 0.34f
@@ -81,7 +85,6 @@ namespace DustInterceptor
         public float TrailSamplePeriod = 1f / 30f;
 
         // Prediction
-        public float PredictHorizonSeconds = 20f;
         public int PredictSteps = 2400;
         public int PredictSampleEvery = 12;
 
