@@ -63,8 +63,8 @@ namespace DustInterceptor
                 CostResource = ResourceType.Iron,
                 BaseCost = 100f,
                 CostMultiplier = 3f,
-                DiscreteValues = [2, 4, 8, 16, 32, 64]  // Starting at x2, can unlock up to x64
-            }, startingLevel: 0);  // Starts at x2
+                DiscreteValues = [1, 2, 4, 8, 16, 32, 64]  // Starting at x1, can unlock up to x64
+            }, startingLevel: 0);  // Starts at x1
 
             // === Mining Upgrades ===
             manager.Register(new UpgradeDefinition
