@@ -86,21 +86,12 @@ We are currently past the Orbit Sandbox and have:
 
 ## Next Tickets (Agent Mode – do one at a time)
 
-### Ticket G3 — Gate asteroid tracking behind the "Asteroid Tracker" upgrade
-- Problem: Target selection / tracking features work even when the upgrade is not purchased.
-- Goal:
-  - Without the upgrade: disable entering Target Selection mode and any target preview/selection.
-  - With the upgrade unlocked: current behavior stays the same.
-- Notes:
-  - Hook into `UpgradeManager` and check `UpgradeType.AsteroidTracker`.
-  - Make the gating obvious in controls/UI (e.g., ignore Y-cycle into Target Selection mode).
-
 ### Ticket P1 — Cargo capacity should affect ship mass (and therefore acceleration and docking "collisions")
 - Problem: Cargo exists and has a capacity limit, but carrying resources does not change ship handling.
 - Goal:
   - Add ship mass model: `shipMass = baseShipMass + cargoMassFactor * (shipIce + shipIron + shipRock)`.
   - Make impulse + gravity acceleration use mass appropriately (likely scale impulse acceleration down with mass; gravity can remain mass-independent unless using force-based model).
-  - Update docking "collision" to consider mass (e.g., heavier ship might have a stronger "stick" to the asteroid, or require a stronger impulse to undock).
+  - Update docking "collision" to consider mass (e.g., heavier ship has higher impact on the collision/the new direction).
 - Notes:
   - Keep it simple and tunable via `GameConfig` constants.
   - Avoid adding allocations; just compute scalar mass each update.

@@ -454,6 +454,16 @@ namespace DustInterceptor
             // Update spatial hash for rendering culling (asteroids moved)
             UpdateSpatialHash();
 
+            // Trail sampling (keep updating while docked so the past trail remains "alive" in the shop)
+            _trailSampleTimer += realDt * timeScale;
+            while (_trailSampleTimer >= _config.TrailSamplePeriod)
+            {
+                _trailSampleTimer -= _config.TrailSamplePeriod;
+                _shipTrail.Enqueue(_ship.Position);
+                while (_shipTrail.Count > _config.ShipTrailMax)
+                    _shipTrail.Dequeue();
+            }
+
             // Clear prediction while docked
             _predictedPath.Clear();
             _targetPredictedPath.Clear();
