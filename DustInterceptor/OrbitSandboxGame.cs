@@ -17,6 +17,10 @@ namespace DustInterceptor
         private Texture2D _pixel = null!;
         private Texture2D _circle = null!;
 
+        // Shaders
+        private Effect _backgroundGridEffect = null!;
+        private float _shaderTime;
+
         // Camera
         private readonly Camera2D _camera = new();
 
@@ -87,6 +91,9 @@ namespace DustInterceptor
 
             _circle = CreateCircleTexture(GraphicsDevice, radiusPx: 128);
 
+            // Load shaders
+            _backgroundGridEffect = Content.Load<Effect>("BackgroundGrid");
+
             // Initialize UI
             _miningUi = new MiningUi(this, _resolutionScale);
             _hud = new Hud(this, _resolutionScale);
@@ -103,6 +110,9 @@ namespace DustInterceptor
             }
 
             float realDt = (float)gameTime.ElapsedGameTime.TotalSeconds;
+
+            // Update shader time
+            _shaderTime += realDt;
 
             // Get current max time scale index from upgrades
             int maxTimeScaleIndex = _upgrades.GetLevel(UpgradeType.MaxTimeScale);
@@ -250,6 +260,9 @@ namespace DustInterceptor
         {
             GraphicsDevice.Clear(_config.BackgroundColor);
 
+            // Draw background grid with shader (fullscreen pass)
+            DrawBackgroundGridShader();
+
             _spriteBatch.Begin(
                 sortMode: SpriteSortMode.Deferred,
                 blendState: BlendState.AlphaBlend,
@@ -258,9 +271,6 @@ namespace DustInterceptor
                 rasterizerState: RasterizerState.CullNone,
                 effect: null,
                 transformMatrix: _camera.GetViewMatrix(GraphicsDevice));
-
-            // Background grid (drawn first, behind everything)
-            DrawBackgroundGrid();
 
             // Planet
             DrawCircleWorld(_world.Planet.Position, _world.Planet.Radius, _config.PlanetColor);
@@ -332,49 +342,37 @@ namespace DustInterceptor
         #region Rendering helpers
         
         /// <summary>
-        /// Draws a radial grid centered on the planet to help visualize orbits.
-        /// Includes concentric circles and radial lines.
+        /// Draws the background grid using a pixel shader for smooth rendering at all zoom levels.
         /// </summary>
-        private void DrawBackgroundGrid()
+        private void DrawBackgroundGridShader()
         {
-            Vector2 center = _world.Planet.Position;
+            var vp = GraphicsDevice.Viewport;
             
-            // Draw concentric circles
-            for (float radius = _config.GridCircleSpacing; radius <= _config.GridMaxRadius; radius += _config.GridCircleSpacing)
-            {
-                DrawCircleOutline(center, radius, _config.GridColor, _config.GridLineWidth);
-            }
+            // Set shader parameters
+            _backgroundGridEffect.Parameters["Time"]?.SetValue(_shaderTime);
+            _backgroundGridEffect.Parameters["Resolution"]?.SetValue(new Vector2(vp.Width, vp.Height));
+            _backgroundGridEffect.Parameters["CameraPosition"]?.SetValue(_camera.Position);
+            _backgroundGridEffect.Parameters["CameraZoom"]?.SetValue(_camera.Zoom);
+            _backgroundGridEffect.Parameters["GridSpacing"]?.SetValue(_config.GridCircleSpacing);
+            _backgroundGridEffect.Parameters["RadialLineCount"]?.SetValue((float)_config.GridRadialLineCount);
+            _backgroundGridEffect.Parameters["GridLineWidth"]?.SetValue(_config.GridLineWidth);
 
-            // Draw radial lines
-            float angleStep = MathF.PI * 2f / _config.GridRadialLineCount;
-            for (int i = 0; i < _config.GridRadialLineCount; i++)
-            {
-                float angle = i * angleStep;
-                Vector2 direction = new Vector2(MathF.Cos(angle), MathF.Sin(angle));
-                Vector2 lineEnd = center + direction * _config.GridMaxRadius;
-                DrawLineWorld(center, lineEnd, _config.GridColor, _config.GridLineWidth);
-            }
-        }
+            // Draw fullscreen quad with shader
+            _spriteBatch.Begin(
+                sortMode: SpriteSortMode.Immediate,
+                blendState: BlendState.AlphaBlend,
+                samplerState: SamplerState.LinearClamp,
+                depthStencilState: DepthStencilState.None,
+                rasterizerState: RasterizerState.CullNone,
+                effect: _backgroundGridEffect);
 
-        /// <summary>
-        /// Draws a circle outline (ring) using line segments.
-        /// </summary>
-        private void DrawCircleOutline(Vector2 center, float radius, Color color, float thickness)
-        {
-            // Use enough segments for a smooth circle at any zoom level
-            int segments = Math.Max(32, (int)(radius / 500f));
-            segments = Math.Min(segments, 256); // Cap for performance
-            
-            float angleStep = MathF.PI * 2f / segments;
-            Vector2 prevPoint = center + new Vector2(radius, 0);
-            
-            for (int i = 1; i <= segments; i++)
-            {
-                float angle = i * angleStep;
-                Vector2 point = center + new Vector2(MathF.Cos(angle) * radius, MathF.Sin(angle) * radius);
-                DrawLineWorld(prevPoint, point, color, thickness);
-                prevPoint = point;
-            }
+            // Draw a fullscreen rectangle
+            _spriteBatch.Draw(
+                _pixel,
+                new Rectangle(0, 0, vp.Width, vp.Height),
+                Color.White);
+
+            _spriteBatch.End();
         }
 
         private void DrawAsteroids()

@@ -17,11 +17,11 @@ namespace DustInterceptor
         public float CameraPanSpeed = 800f;
 
         // === Background Grid ===
-        public Color GridColor = new(40, 45, 55, 80);
-        public float GridCircleSpacing = 10_000f;        // Distance between concentric circles
+        public Color GridColor = new(40, 45, 55, 5);
+        public float GridCircleSpacing = 100_000f;        // Distance between concentric circles
         public float GridMaxRadius = 2_500_000f;         // Maximum radius for grid circles
-        public int GridRadialLineCount = 12;             // Number of radial lines (every 30 degrees = 12 lines)
-        public float GridLineWidth = 20f;                // Thickness of grid lines in world units
+        public int GridRadialLineCount = 6;             // Number of radial lines (every 30 degrees = 12 lines)
+        public float GridLineWidth = 1000f;                // Thickness of grid lines in world units
 
         // === Trail Rendering ===
         public Color PastTrailColor = new(120, 120, 120, 130);

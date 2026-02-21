@@ -133,3 +133,7 @@ To add a new upgrade:
 - SensorRange - See asteroid composition at distance
 - AutoPilot - Automatic intercept calculation
 - WarpDrive - Escape the system (win condition)
+
+
+## Thoughts on Economy
+- More Ressources needed. Gating of visiting a certain Belt. Move to a better system (similar to Upgrades)
