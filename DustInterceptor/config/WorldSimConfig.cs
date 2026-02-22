@@ -6,7 +6,7 @@ namespace DustInterceptor
     public sealed class WorldSimConfig
     {
         // Physics
-        public float Mu = 8.0e10f;
+        public float Mu = 1.0e9f;
         public float BaseDt = 1f / 120f;
 
         // Planet

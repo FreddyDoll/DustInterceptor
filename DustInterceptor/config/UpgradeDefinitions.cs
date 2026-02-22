@@ -33,10 +33,10 @@ namespace DustInterceptor
                 Category = UpgradeCategory.Propulsion,
                 CostResource = ResourceType.Iron,
                 BaseCost = 75f,
-                CostMultiplier = 1.9f,
-                BaseValue = 4.00f,
-                FactorPerLevel = 0.95f,  
-                MaxLevel = 12  
+                CostMultiplier = 2f,
+                BaseValue = 12.00f,
+                FactorPerLevel = 0.5f,  
+                MaxLevel = 3  
             });
 
             // === Time Control Upgrades ===
@@ -47,10 +47,10 @@ namespace DustInterceptor
                 Description = "Unlocks faster time compression",
                 Category = UpgradeCategory.TimeControl,
                 CostResource = ResourceType.Iron,
-                BaseCost = 100f,
-                CostMultiplier = 3f,
-                DiscreteValues = [1, 2, 4, 8, 16, 32, 64]  // Starting at x1, can unlock up to x64
-            }, startingLevel: 6);  // Starts at x1
+                BaseCost = 50f,
+                CostMultiplier = 2f,
+                DiscreteValues = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
+            }, startingLevel: 1);
 
             // === Mining Upgrades ===
             manager.Register(new UpgradeDefinition
@@ -104,7 +104,7 @@ namespace DustInterceptor
                 CostResource = ResourceType.Ice,
                 BaseCost = 40f,
                 CostMultiplier = 1.6f,
-                BaseValue = 0.002f,   // Start more zoomed in (higher = more restrictive)
+                BaseValue = 0.8f,   // Start more zoomed in (higher = more restrictive)
                 FactorPerLevel = 0.5f, 
                 MaxLevel = 6  
             });

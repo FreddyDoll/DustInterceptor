@@ -87,6 +87,11 @@ namespace DustInterceptor
                 16 => new Color(240, 200, 100),
                 32 => new Color(255, 150, 80),
                 64 => new Color(255, 100, 100),
+                128 => new Color(255, 80, 120),
+                256 => new Color(235, 70, 160),
+                512 => new Color(205, 70, 205),
+                1024 => new Color(170, 90, 255),
+
                 _ => Color.White
             };
         }

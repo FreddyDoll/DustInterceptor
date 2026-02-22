@@ -86,23 +86,16 @@ We are currently past the Orbit Sandbox and have:
 
 ## Next Tickets (Agent Mode – do one at a time)
 
-### Ticket P1 — Cargo capacity should affect ship mass (and therefore acceleration and docking "collisions")
-- Problem: Cargo exists and has a capacity limit, but carrying resources does not change ship handling.
-- Goal:
-  - Add ship mass model: `shipMass = baseShipMass + cargoMassFactor * (shipIce + shipIron + shipRock)`.
-  - Make impulse + gravity acceleration use mass appropriately (likely scale impulse acceleration down with mass; gravity can remain mass-independent unless using force-based model).
-  - Update docking "collision" to consider mass (e.g., heavier ship has higher impact on the collision/the new direction).
-- Notes:
-  - Keep it simple and tunable via `GameConfig` constants.
-  - Avoid adding allocations; just compute scalar mass each update.
 
-### Ticket U1 — Remove deprecated impulse cooldown / inaccuracy upgrades (cleanup)
-- Problem: DESIGN notes mark Impulse Cooldown and Impulse Inaccuracy upgrades as “remove”.
-- Goal:
-  - Remove `UpgradeType` entries (if present), their definitions in `UpgradeDefinitions`, and any UI exposure.
-  - Keep the actual gameplay mechanics (cooldown + inaccuracy) as baseline/tunable values in `GameConfig` unless also intentionally removed.
-- Acceptance:
-  - Build succeeds; no dead/unused upgrade plumbing.
+### Ticket U1 — Rework Ressource System
+**Goal** make it easy to add new Materials and extend Material properties.
+- Iplement a similar system to Upgrades.
+- Remove hardcoded Ice/Iron/Rock properties from Asteroid and Ship.
+- Add density to Material and use it to calculate Ateroid radius
+**Acceptance Criteria**
+- New Material struct with properties (e.g., density, color)
+- Asteroid and Ship use Material references instead of hardcoded types
+- Asteroid radius calculated from material amount and density
 
 ---
 

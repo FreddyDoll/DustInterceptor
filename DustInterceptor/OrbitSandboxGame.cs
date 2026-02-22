@@ -575,7 +575,8 @@ namespace DustInterceptor
                 transformMatrix: _camera.GetViewMatrix(GraphicsDevice));
 
             // Query visible asteroids using LOD spatial hash - automatically filters by size
-            foreach (int i in _world.QueryVisibleAsteroids(_camera.Position, halfWidth, halfHeight, minAsteroidRadius))
+            var visibleAsteroids = _world.QueryVisibleAsteroids(_camera.Position, halfWidth, halfHeight, minAsteroidRadius);
+            foreach (int i in visibleAsteroids)
             {
                 ref var a = ref _world.Asteroids[i];
                 

@@ -84,7 +84,7 @@ namespace DustInterceptor
         public Color ImpulseAimReadyColor = new(255, 80, 80, 180);      // Bright red when ready
         public Color ImpulseAimChargingColor = new(100, 100, 100, 150); // Dim gray while charging
         public float ImpulseAimWidth = 28f;
-        public float ImpulseAimScale = 2.9f;
+        public float ImpulseAimScale = 10f;
 
         // === World Colors ===
         public Color BackgroundColor = new(8, 10, 18);

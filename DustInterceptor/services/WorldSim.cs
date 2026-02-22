@@ -36,15 +36,6 @@ namespace DustInterceptor
         // Collision broadphase (fine-grained for collision detection)
         private readonly SpatialHashGrid _spatialHash = new();
 
-        // LOD spatial hash for rendering (multiple levels based on asteroid size)
-        private readonly LodSpatialHash _lodSpatialHash = new(
-            (0f, 500f),       // Level 0: All asteroids (radius >= 0), fine cells
-            (20f, 2000f),     // Level 1: Medium+ asteroids (radius >= 20), medium cells
-            (50f, 5000f),     // Level 2: Large asteroids (radius >= 50), coarse cells
-            (100f, 20000f),   // Level 3: Very large asteroids (radius >= 100), very coarse cells
-            (500f, 50000f)    // Level 4: Huge asteroids/planets (radius >= 500), huge cells
-        );
-
         // Trail
         private readonly Queue<Vector2> _shipTrail = new();
         private float _trailSampleTimer;
@@ -702,7 +693,6 @@ namespace DustInterceptor
         private void UpdateSpatialHash()
         {
             _spatialHash.Clear(_config.SpatialHashCellSize);
-            _lodSpatialHash.Clear();
 
             for (int i = 0; i < _asteroids.Length; i++)
             {
@@ -711,7 +701,6 @@ namespace DustInterceptor
                     continue;
 
                 _spatialHash.Insert(i, _asteroids[i].Position, _asteroids[i].Radius);
-                _lodSpatialHash.Insert(i, _asteroids[i].Position, _asteroids[i].Radius);
             }
         }
 
@@ -725,9 +714,24 @@ namespace DustInterceptor
         /// <param name="minAsteroidRadius">Minimum asteroid radius to return (for LOD culling)</param>
         public IEnumerable<int> QueryVisibleAsteroids(Vector2 center, float halfWidth, float halfHeight, float minAsteroidRadius = 0f)
         {
-            // Query using the larger dimension as radius for the spatial hash
-            float queryRadius = MathF.Max(halfWidth, halfHeight) * 1.5f; // Add margin for asteroid radii
-            return _lodSpatialHash.Query(center, queryRadius, minAsteroidRadius);
+            for (int i = 0; i < _asteroids.Length; i++)
+            {
+                var roid = _asteroids[i];
+                var left = center.X - halfWidth;
+                var right = center.X + halfWidth;
+                var top = center.Y - halfHeight;
+                var bottom = center.Y + halfHeight;
+
+                // Skip disabled asteroids - don't add them to spatial hash
+                if (_asteroids[i].Disabled)
+                    continue;
+
+                if (_asteroids[i].Radius < minAsteroidRadius)
+                    continue;
+
+                if(roid.Position.X > left && roid.Position.X < right && roid.Position.Y > top && roid.Position.Y < bottom)
+                    yield return i;
+            }
         }
 
         private void CheckShipCollisions()
