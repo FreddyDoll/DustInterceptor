@@ -71,6 +71,9 @@ namespace DustInterceptor
 
         protected override void Initialize()
         {
+            // Register material definitions (must be before WorldSim creation)
+            MaterialDefinitions.RegisterAll();
+
             // Create world simulation with default config
             _world = new WorldSim(new WorldSimConfig());
 
@@ -284,7 +287,7 @@ namespace DustInterceptor
                 _miningUi.Show();
 
             // Helper to get resources for upgrade system
-            float GetResource(ResourceType r) => _world.GetResource(r);
+            float GetResource(MaterialType r) => _world.GetResource(r);
 
             if (_world.DockedAsteroidIndex >= 0 && _world.DockedAsteroidIndex < _world.Asteroids.Length)
             {
@@ -299,12 +302,8 @@ namespace DustInterceptor
 
                 _miningUi.UpdateData(new MiningUiData
                 {
-                    AsteroidIce = asteroid.Ice,
-                    AsteroidIron = asteroid.Iron,
-                    AsteroidRock = asteroid.Rock,
-                    ShipIce = _world.ShipIce,
-                    ShipIron = _world.ShipIron,
-                    ShipRock = _world.ShipRock,
+                    AsteroidMaterials = asteroid.Materials,
+                    ShipCargo = new Dictionary<MaterialType, float>(_world.ShipCargo),
                     CurrentMiningSpeed = _upgrades.GetValue(UpgradeType.MiningSpeed),
                     Upgrades = upgradeDataList
                 });
@@ -556,14 +555,15 @@ namespace DustInterceptor
             float halfHeight = (vp.Height / 2f) / _camera.Zoom;
 
             // Calculate minimum asteroid radius to render based on screen size threshold
-            // An asteroid with radius R appears as R * 2 * zoom pixels on screen
-            // We want to cull asteroids smaller than MinAsteroidScreenSize pixels
             float minAsteroidRadius = _config.MinAsteroidScreenSize / (2f * _camera.Zoom);
 
-            // Set static asteroid shader parameters (ToVector3 already returns 0-1 normalized values)
-            _asteroidEffect.Parameters["IceColor"]?.SetValue(_config.AsteroidIceColor.ToVector3());
-            _asteroidEffect.Parameters["IronColor"]?.SetValue(_config.AsteroidIronColor.ToVector3());
-            _asteroidEffect.Parameters["RockColor"]?.SetValue(_config.AsteroidRockColor.ToVector3());
+            // Set static asteroid shader parameters from MaterialDefinitions
+            var iceDef = MaterialDefinitions.Get(MaterialType.Ice);
+            var ironDef = MaterialDefinitions.Get(MaterialType.Iron);
+            var rockDef = MaterialDefinitions.Get(MaterialType.Rock);
+            _asteroidEffect.Parameters["IceColor"]?.SetValue(iceDef.Color.ToVector3());
+            _asteroidEffect.Parameters["IronColor"]?.SetValue(ironDef.Color.ToVector3());
+            _asteroidEffect.Parameters["RockColor"]?.SetValue(rockDef.Color.ToVector3());
 
             _spriteBatch.Begin(
                 sortMode: SpriteSortMode.Immediate,
@@ -583,7 +583,7 @@ namespace DustInterceptor
                 if (a.Disabled)
                     continue;
 
-                float total = a.Ice + a.Iron + a.Rock;
+                float total = a.TotalMaterials;
                 if (total < 0.001f)
                 {
                     // Depleted asteroid - draw simple gray
@@ -609,10 +609,10 @@ namespace DustInterceptor
                     continue;
                 }
 
-                // Set per-asteroid parameters
-                _asteroidEffect.Parameters["IceRatio"]?.SetValue(a.Ice / total);
-                _asteroidEffect.Parameters["IronRatio"]?.SetValue(a.Iron / total);
-                _asteroidEffect.Parameters["RockRatio"]?.SetValue(a.Rock / total);
+                // Set per-asteroid parameters using material dictionary
+                _asteroidEffect.Parameters["IceRatio"]?.SetValue(a.GetMaterial(MaterialType.Ice) / total);
+                _asteroidEffect.Parameters["IronRatio"]?.SetValue(a.GetMaterial(MaterialType.Iron) / total);
+                _asteroidEffect.Parameters["RockRatio"]?.SetValue(a.GetMaterial(MaterialType.Rock) / total);
                 _asteroidEffect.Parameters["Seed"]?.SetValue((float)(i * 7.31)); // Unique seed per asteroid
 
                 DrawCircleWorld(a.Position, a.Radius, Color.White);
@@ -633,19 +633,21 @@ namespace DustInterceptor
 
         private Color GetAsteroidColor(ref Asteroid a)
         {
-            float total = a.Ice + a.Iron + a.Rock;
+            float total = a.TotalMaterials;
             if (total < 0.001f)
             {
                 return _config.AsteroidDepletedColor;
             }
 
-            float iceRatio = a.Ice / total;
-            float ironRatio = a.Iron / total;
-            float rockRatio = a.Rock / total;
-
-            float r = iceRatio * _config.AsteroidIceColor.R + ironRatio * _config.AsteroidIronColor.R + rockRatio * _config.AsteroidRockColor.R;
-            float g = iceRatio * _config.AsteroidIceColor.G + ironRatio * _config.AsteroidIronColor.G + rockRatio * _config.AsteroidRockColor.G;
-            float b = iceRatio * _config.AsteroidIceColor.B + ironRatio * _config.AsteroidIronColor.B + rockRatio * _config.AsteroidRockColor.B;
+            float r = 0f, g = 0f, b = 0f;
+            foreach (var matType in MaterialDefinitions.AllTypes)
+            {
+                float ratio = a.GetMaterial(matType) / total;
+                var color = MaterialDefinitions.Get(matType).Color;
+                r += ratio * color.R;
+                g += ratio * color.G;
+                b += ratio * color.B;
+            }
 
             return new Color((int)r, (int)g, (int)b);
         }

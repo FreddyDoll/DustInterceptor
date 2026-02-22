@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Input;
 using Myra;
@@ -21,12 +22,12 @@ namespace DustInterceptor
     /// </summary>
     public struct MiningUiData
     {
-        public float AsteroidIce;
-        public float AsteroidIron;
-        public float AsteroidRock;
-        public float ShipIce;
-        public float ShipIron;
-        public float ShipRock;
+        /// <summary>Materials on the docked asteroid, keyed by MaterialType.</summary>
+        public Dictionary<MaterialType, float> AsteroidMaterials;
+
+        /// <summary>Materials in ship cargo, keyed by MaterialType.</summary>
+        public Dictionary<MaterialType, float> ShipCargo;
+
         public float CurrentMiningSpeed;
 
         // Dynamic upgrade list
@@ -229,7 +230,20 @@ namespace DustInterceptor
         /// </summary>
         public void UpdateData(MiningUiData data)
         {
-            float asteroidTotal = data.AsteroidIce + data.AsteroidIron + data.AsteroidRock;
+            // Build asteroid info text dynamically from material definitions
+            float asteroidTotal = 0f;
+            var asteroidLines = "Asteroid:\n";
+            if (data.AsteroidMaterials != null)
+            {
+                foreach (var matType in MaterialDefinitions.AllTypes)
+                {
+                    float amount = data.AsteroidMaterials.TryGetValue(matType, out float a) ? a : 0f;
+                    var def = MaterialDefinitions.Get(matType);
+                    asteroidLines += $"  {def.Name}:  {amount:F1}\n";
+                    asteroidTotal += amount;
+                }
+            }
+
             _miningStatusLabel.Text = asteroidTotal > 0.1f 
                 ? $"[ TRANSFERRING {data.CurrentMiningSpeed:F0}/s ]" 
                 : "[ DEPLETED ]";
@@ -237,15 +251,20 @@ namespace DustInterceptor
                 ? new Color(255, 200, 100) 
                 : new Color(150, 150, 150);
 
-            _asteroidInfoLabel.Text = $"Asteroid:\n" +
-                $"  Ice:  {data.AsteroidIce:F1}\n" +
-                $"  Iron: {data.AsteroidIron:F1}\n" +
-                $"  Rock: {data.AsteroidRock:F1}";
+            _asteroidInfoLabel.Text = asteroidLines.TrimEnd('\n');
 
-            _shipCargoLabel.Text = $"Ship:\n" +
-                $"  Ice:  {data.ShipIce:F1}\n" +
-                $"  Iron: {data.ShipIron:F1}\n" +
-                $"  Rock: {data.ShipRock:F1}";
+            // Build ship cargo text dynamically
+            var shipLines = "Ship:\n";
+            if (data.ShipCargo != null)
+            {
+                foreach (var matType in MaterialDefinitions.AllTypes)
+                {
+                    float amount = data.ShipCargo.TryGetValue(matType, out float a) ? a : 0f;
+                    var def = MaterialDefinitions.Get(matType);
+                    shipLines += $"  {def.Name}:  {amount:F1}\n";
+                }
+            }
+            _shipCargoLabel.Text = shipLines.TrimEnd('\n');
 
             // Update upgrade list
             _currentUpgrades = data.Upgrades ?? new List<UpgradeDisplayData>();

@@ -29,9 +29,9 @@ namespace DustInterceptor
         public UpgradeCategory Category { get; init; }
 
         /// <summary>
-        /// Resource used to purchase this upgrade.
+        /// Material type used to purchase this upgrade.
         /// </summary>
-        public ResourceType CostResource { get; init; } = ResourceType.Iron;
+        public MaterialType CostResource { get; init; } = MaterialType.Iron;
 
         /// <summary>
         /// Base cost at level 0 (first purchase).

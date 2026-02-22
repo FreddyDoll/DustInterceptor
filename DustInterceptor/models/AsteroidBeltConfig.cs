@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace DustInterceptor
 {
     /// <summary>
@@ -26,13 +28,23 @@ namespace DustInterceptor
         /// <summary>Orbit velocity variation (±percentage).</summary>
         public float OrbitVariation { get; init; } = 0.03f;
 
-        /// <summary>Material bias: ice weight (0-1).</summary>
-        public float IceBias { get; init; } = 0.33f;
+        /// <summary>
+        /// Material biases by type. Keys are MaterialType, values are relative weights (0-1).
+        /// Any material not present defaults to 0.
+        /// </summary>
+        public Dictionary<MaterialType, float> MaterialBiases { get; init; } = new()
+        {
+            { MaterialType.Ice, 0.33f },
+            { MaterialType.Iron, 0.33f },
+            { MaterialType.Rock, 0.34f }
+        };
 
-        /// <summary>Material bias: iron weight (0-1).</summary>
-        public float IronBias { get; init; } = 0.33f;
-
-        /// <summary>Material bias: rock weight (0-1).</summary>
-        public float RockBias { get; init; } = 0.34f;
+        /// <summary>
+        /// Gets the material bias for a given type. Returns 0 if not configured.
+        /// </summary>
+        public float GetMaterialBias(MaterialType type)
+        {
+            return MaterialBiases.TryGetValue(type, out float bias) ? bias : 0f;
+        }
     }
 }

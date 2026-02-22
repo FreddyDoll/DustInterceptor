@@ -132,7 +132,7 @@ namespace DustInterceptor
         /// <param name="type">The upgrade to purchase</param>
         /// <param name="getResource">Function to get current resource amount</param>
         /// <param name="spendResource">Function to spend resources, returns true if successful</param>
-        public bool TryPurchase(UpgradeType type, Func<ResourceType, float> getResource, Func<ResourceType, float, bool> spendResource)
+        public bool TryPurchase(UpgradeType type, Func<MaterialType, float> getResource, Func<MaterialType, float, bool> spendResource)
         {
             if (!_upgrades.TryGetValue(type, out var state))
                 return false;
@@ -141,7 +141,7 @@ namespace DustInterceptor
                 return false;
 
             float cost = state.NextCost;
-            ResourceType resource = state.Definition.CostResource;
+            MaterialType resource = state.Definition.CostResource;
 
             if (getResource(resource) < cost)
                 return false;
@@ -156,7 +156,7 @@ namespace DustInterceptor
         /// <summary>
         /// Checks if an upgrade can be afforded.
         /// </summary>
-        public bool CanAfford(UpgradeType type, Func<ResourceType, float> getResource)
+        public bool CanAfford(UpgradeType type, Func<MaterialType, float> getResource)
         {
             if (!_upgrades.TryGetValue(type, out var state))
                 return false;
@@ -170,7 +170,7 @@ namespace DustInterceptor
         /// <summary>
         /// Gets upgrade data for UI display.
         /// </summary>
-        public UpgradeDisplayData GetDisplayData(UpgradeType type, Func<ResourceType, float> getResource)
+        public UpgradeDisplayData GetDisplayData(UpgradeType type, Func<MaterialType, float> getResource)
         {
             var state = Get(type);
             return new UpgradeDisplayData
@@ -203,7 +203,7 @@ namespace DustInterceptor
         public int CurrentLevel;
         public float CurrentValue;
         public float NextCost;
-        public ResourceType CostResource;
+        public MaterialType CostResource;
         public bool CanAfford;
         public bool CanUpgrade;
         public bool IsUnlock;

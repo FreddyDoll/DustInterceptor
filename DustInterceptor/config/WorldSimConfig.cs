@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace DustInterceptor
 {
     /// <summary>
@@ -62,9 +64,12 @@ namespace DustInterceptor
                 RadiusMin = 100f,
                 RadiusMax = 500f,
                 OrbitVariation = 0.002f,
-                IceBias = 0.1f,
-                IronBias = 0.6f,
-                RockBias = 0.3f
+                MaterialBiases = new Dictionary<MaterialType, float>
+                {
+                    { MaterialType.Ice, 0.1f },
+                    { MaterialType.Iron, 0.6f },
+                    { MaterialType.Rock, 0.3f }
+                }
             },
             new AsteroidBeltConfig
             {
@@ -75,9 +80,12 @@ namespace DustInterceptor
                 RadiusMin = 5f,
                 RadiusMax = 60f,
                 OrbitVariation = 0.01f,
-                IceBias = 0.33f,
-                IronBias = 0.33f,
-                RockBias = 0.34f
+                MaterialBiases = new Dictionary<MaterialType, float>
+                {
+                    { MaterialType.Ice, 0.33f },
+                    { MaterialType.Iron, 0.33f },
+                    { MaterialType.Rock, 0.34f }
+                }
             },
             new AsteroidBeltConfig
             {
@@ -88,9 +96,12 @@ namespace DustInterceptor
                 RadiusMin = 1_000f,
                 RadiusMax = 8_000f,
                 OrbitVariation = 0.04f,
-                IceBias = 0.7f,
-                IronBias = 0.1f,
-                RockBias = 0.2f
+                MaterialBiases = new Dictionary<MaterialType, float>
+                {
+                    { MaterialType.Ice, 0.7f },
+                    { MaterialType.Iron, 0.1f },
+                    { MaterialType.Rock, 0.2f }
+                }
             },
             new AsteroidBeltConfig
             {
@@ -101,9 +112,12 @@ namespace DustInterceptor
                 RadiusMin = 100f,
                 RadiusMax = 800f,
                 OrbitVariation = 0.04f,
-                IceBias = 0.7f,
-                IronBias = 0.1f,
-                RockBias = 0.2f
+                MaterialBiases = new Dictionary<MaterialType, float>
+                {
+                    { MaterialType.Ice, 0.7f },
+                    { MaterialType.Iron, 0.1f },
+                    { MaterialType.Rock, 0.2f }
+                }
             }
         ];
 

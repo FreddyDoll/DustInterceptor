@@ -20,10 +20,8 @@ namespace DustInterceptor
         private Body _ship;
         private Asteroid[] _asteroids = null!;
 
-        // Cargo
-        private float _shipIce;
-        private float _shipIron;
-        private float _shipRock;
+        // Cargo (dictionary-based, keyed by MaterialType)
+        private readonly Dictionary<MaterialType, float> _shipCargo = new();
 
         // Mode
         private GameMode _mode = GameMode.Flight;
@@ -78,6 +76,10 @@ namespace DustInterceptor
 
         private void Initialize()
         {
+            // Initialize cargo for all registered material types
+            foreach (var matType in MaterialDefinitions.AllTypes)
+                _shipCargo[matType] = 0f;
+
             // Planet at origin
             _planet = new Body
             {
@@ -108,9 +110,17 @@ namespace DustInterceptor
             int totalCount = _config.AsteroidBelts.Sum(b => b.Count);
             _asteroids = new Asteroid[totalCount];
 
+            // Cache material types for iteration
+            var materialTypes = MaterialDefinitions.AllTypes.ToArray();
+
             int index = 0;
             foreach (var belt in _config.AsteroidBelts)
             {
+                // Calculate total bias from belt config
+                float totalBias = 0f;
+                foreach (var matType in materialTypes)
+                    totalBias += belt.GetMaterialBias(matType);
+
                 for (int i = 0; i < belt.Count; i++)
                 {
                     float angle = (float)(_rng.NextDouble() * Math.PI * 2.0);
@@ -131,32 +141,30 @@ namespace DustInterceptor
                     float asteroidRadius = belt.RadiusMin + sizeFactor * (belt.RadiusMax - belt.RadiusMin);
 
                     // Generate materials with belt-specific bias
-                    float totalBias = belt.IceBias + belt.IronBias + belt.RockBias;
-                    float iceWeight = belt.IceBias / totalBias;
-                    float ironWeight = belt.IronBias / totalBias;
-                    float rockWeight = belt.RockBias / totalBias;
+                    var rawWeights = new Dictionary<MaterialType, float>();
+                    float totalRaw = 0f;
+                    foreach (var matType in materialTypes)
+                    {
+                        float weight = (belt.GetMaterialBias(matType) / totalBias)
+                                     * (0.5f + (float)_rng.NextDouble());
+                        rawWeights[matType] = weight;
+                        totalRaw += weight;
+                    }
 
-                    // Random variation around the bias
-                    float ice = iceWeight * (0.5f + (float)_rng.NextDouble());
-                    float iron = ironWeight * (0.5f + (float)_rng.NextDouble());
-                    float rock = rockWeight * (0.5f + (float)_rng.NextDouble());
-
-                    // Normalize
-                    float totalMat = ice + iron + rock;
-                    ice /= totalMat;
-                    iron /= totalMat;
-                    rock /= totalMat;
-
+                    // Normalize and scale
                     float materialScale = asteroidRadius * asteroidRadius * 0.1f;
+                    var materials = new Dictionary<MaterialType, float>();
+                    foreach (var matType in materialTypes)
+                    {
+                        materials[matType] = (rawWeights[matType] / totalRaw) * materialScale;
+                    }
 
                     _asteroids[index++] = new Asteroid
                     {
                         Position = pos,
                         Velocity = vel,
                         Radius = asteroidRadius,
-                        Ice = ice * materialScale,
-                        Iron = iron * materialScale,
-                        Rock = rock * materialScale,
+                        Materials = materials,
                         Disabled = false
                     };
                 }
@@ -174,9 +182,10 @@ namespace DustInterceptor
         public GameMode Mode => _mode;
         public int DockedAsteroidIndex => _dockedAsteroidIndex;
 
-        public float ShipIce => _shipIce;
-        public float ShipIron => _shipIron;
-        public float ShipRock => _shipRock;
+        /// <summary>
+        /// Ship cargo dictionary (read-only access).
+        /// </summary>
+        public IReadOnlyDictionary<MaterialType, float> ShipCargo => _shipCargo;
 
         public float ImpulseCooldownLeft => _impulseCooldownLeft;
 
@@ -198,67 +207,21 @@ namespace DustInterceptor
         // ===== Cargo operations =====
 
         /// <summary>
-        /// Gets the amount of a specific resource type in ship cargo.
+        /// Gets the amount of a specific material type in ship cargo.
         /// </summary>
-        public float GetResource(ResourceType resource)
+        public float GetResource(MaterialType material)
         {
-            return resource switch
-            {
-                ResourceType.Ice => _shipIce,
-                ResourceType.Iron => _shipIron,
-                ResourceType.Rock => _shipRock,
-                _ => 0f
-            };
+            return _shipCargo.TryGetValue(material, out float amount) ? amount : 0f;
         }
 
         /// <summary>
-        /// Attempts to spend the specified amount of a resource. Returns true if successful.
+        /// Attempts to spend the specified amount of a material. Returns true if successful.
         /// </summary>
-        public bool TrySpendResource(ResourceType resource, float amount)
+        public bool TrySpendResource(MaterialType material, float amount)
         {
-            return resource switch
+            if (_shipCargo.TryGetValue(material, out float current) && current >= amount)
             {
-                ResourceType.Ice => TrySpendIce(amount),
-                ResourceType.Iron => TrySpendIron(amount),
-                ResourceType.Rock => TrySpendRock(amount),
-                _ => false
-            };
-        }
-
-        /// <summary>
-        /// Attempts to spend the specified amount of ice. Returns true if successful.
-        /// </summary>
-        public bool TrySpendIce(float amount)
-        {
-            if (_shipIce >= amount)
-            {
-                _shipIce -= amount;
-                return true;
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// Attempts to spend the specified amount of iron. Returns true if successful.
-        /// </summary>
-        public bool TrySpendIron(float amount)
-        {
-            if (_shipIron >= amount)
-            {
-                _shipIron -= amount;
-                return true;
-            }
-            return false;
-        }
-
-        /// <summary>
-        /// Attempts to spend the specified amount of rock. Returns true if successful.
-        /// </summary>
-        public bool TrySpendRock(float amount)
-        {
-            if (_shipRock >= amount)
-            {
-                _shipRock -= amount;
+                _shipCargo[material] = current - amount;
                 return true;
             }
             return false;
@@ -400,22 +363,15 @@ namespace DustInterceptor
                 float totalOnAsteroid = asteroid.TotalMaterials;
                 if (totalOnAsteroid > 0.001f)
                 {
-                    float iceRatio = asteroid.Ice / totalOnAsteroid;
-                    float ironRatio = asteroid.Iron / totalOnAsteroid;
-                    float rockRatio = asteroid.Rock / totalOnAsteroid;
+                    foreach (var matType in MaterialDefinitions.AllTypes)
+                    {
+                        float available = asteroid.GetMaterial(matType);
+                        float ratio = available / totalOnAsteroid;
+                        float transfer = Math.Min(available, transferAmount * ratio);
 
-                    // Transfer proportionally, but clamp to available
-                    float iceTransfer = Math.Min(asteroid.Ice, transferAmount * iceRatio);
-                    float ironTransfer = Math.Min(asteroid.Iron, transferAmount * ironRatio);
-                    float rockTransfer = Math.Min(asteroid.Rock, transferAmount * rockRatio);
-
-                    asteroid.Ice -= iceTransfer;
-                    asteroid.Iron -= ironTransfer;
-                    asteroid.Rock -= rockTransfer;
-
-                    _shipIce += iceTransfer;
-                    _shipIron += ironTransfer;
-                    _shipRock += rockTransfer;
+                        asteroid.SetMaterial(matType, available - transfer);
+                        _shipCargo[matType] = GetResource(matType) + transfer;
+                    }
                 }
 
                 // Ship sticks to asteroid
@@ -471,13 +427,11 @@ namespace DustInterceptor
                 // Check if asteroid is depleted and mark it as disabled
                 if (asteroid.IsDepleted)
                 {
-                    asteroid.Ice = 0f;
-                    asteroid.Iron = 0f;
-                    asteroid.Rock = 0f;
+                    foreach (var matType in MaterialDefinitions.AllTypes)
+                        asteroid.SetMaterial(matType, 0f);
                     asteroid.Disabled = true;
                 }
             }
-
 
             _dockedAsteroidIndex = -1;
         }
@@ -554,14 +508,12 @@ namespace DustInterceptor
             Vector2 acc = ComputeGravityAcceleration(b.Position);
             b.Velocity += acc * dt;
             b.Position += b.Velocity * dt;
-            // Note: Rotation is updated separately in UpdateShipRotation for the ship
         }
 
         private void StepAsteroids(float dt)
         {
             for (int i = 0; i < _asteroids.Length; i++)
             {
-                // Skip disabled asteroids
                 if (_asteroids[i].Disabled)
                     continue;
 
@@ -592,9 +544,6 @@ namespace DustInterceptor
 
             Vector2 pos = _ship.Position;
 
-            // Use same mass-scaled impulse preview as the real impulse.
-
-            // Get ship's forward direction
             Vector2 forward = ShipForward;
             float shipMass = ComputeShipMass();
             var deltaV = forward * impulseAim.Length();
@@ -656,9 +605,6 @@ namespace DustInterceptor
 
         /// <summary>
         /// Computes an approximate "one orbit" time horizon at the given state.
-        /// Uses orbital period from semi-major axis (works for ellipses):
-        /// a = 1 / (2/r - v^2/μ),  T = 2π * sqrt(a^3/μ)
-        /// Falls back to circular approximation when not on a bound (elliptic) orbit.
         /// </summary>
         private float ComputeOneOrbitHorizonSeconds(Vector2 position, Vector2 velocity)
         {
@@ -669,21 +615,16 @@ namespace DustInterceptor
 
             float v2 = velocity.LengthSquared();
 
-            // Vis-viva: v^2 = μ(2/r - 1/a) => 1/a = 2/r - v^2/μ
             float invA = (2f / r) - (v2 / mu);
 
-            // Bound orbit requires a > 0 (invA > 0). If invA <= 0, it's parabolic/hyperbolic.
             if (invA > 1e-9f)
             {
                 float a = 1f / invA;
-
-                // Kepler's third law.
                 float period = 2f * MathF.PI * MathF.Sqrt((a * a * a) / mu);
                 if (float.IsFinite(period) && period > 0.001f)
                     return period;
             }
 
-            // Fallback: local circular orbit period at current radius.
             float circularPeriod = 2f * MathF.PI * MathF.Sqrt((r * r * r) / mu);
             return (float.IsFinite(circularPeriod) && circularPeriod > 0.001f) ? circularPeriod : 0f;
         }
@@ -696,7 +637,6 @@ namespace DustInterceptor
 
             for (int i = 0; i < _asteroids.Length; i++)
             {
-                // Skip disabled asteroids - don't add them to spatial hash
                 if (_asteroids[i].Disabled)
                     continue;
 
@@ -706,12 +646,7 @@ namespace DustInterceptor
 
         /// <summary>
         /// Queries asteroids visible in a rectangular area (for rendering culling).
-        /// Uses LOD-based spatial hash - when minAsteroidRadius > 0, only queries larger asteroids.
         /// </summary>
-        /// <param name="center">Center of query area</param>
-        /// <param name="halfWidth">Half-width of visible area in world units</param>
-        /// <param name="halfHeight">Half-height of visible area in world units</param>
-        /// <param name="minAsteroidRadius">Minimum asteroid radius to return (for LOD culling)</param>
         public IEnumerable<int> QueryVisibleAsteroids(Vector2 center, float halfWidth, float halfHeight, float minAsteroidRadius = 0f)
         {
             for (int i = 0; i < _asteroids.Length; i++)
@@ -722,7 +657,6 @@ namespace DustInterceptor
                 var top = center.Y - halfHeight;
                 var bottom = center.Y + halfHeight;
 
-                // Skip disabled asteroids - don't add them to spatial hash
                 if (_asteroids[i].Disabled)
                     continue;
 
@@ -740,13 +674,11 @@ namespace DustInterceptor
 
             foreach (int asteroidIndex in _spatialHash.Query(_ship.Position, queryRadius))
             {
-                // Skip the ignored asteroid (just undocked from)
                 if (asteroidIndex == _ignoreAsteroidIndex)
                     continue;
 
                 ref var asteroid = ref _asteroids[asteroidIndex];
 
-                // Skip disabled asteroids (should not be in hash, but double-check)
                 if (asteroid.Disabled)
                     continue;
 
@@ -765,12 +697,10 @@ namespace DustInterceptor
         {
             _mode = GameMode.Mining;
             _dockedAsteroidIndex = asteroidIndex;
-            _ignoreAsteroidIndex = -1; // Clear ignore when docking to new asteroid
+            _ignoreAsteroidIndex = -1;
 
             ref var asteroid = ref _asteroids[asteroidIndex];
 
-            // Calculate perfectly inelastic collision velocity
-            // v_final = (m_ship * v_ship + m_asteroid * v_asteroid) / (m_ship + m_asteroid)
             float shipMass = ComputeShipMass();
             float asteroidMass = asteroid.Mass;
             float totalMass = shipMass + asteroidMass;
@@ -779,7 +709,6 @@ namespace DustInterceptor
 
             Vector2 combinedVelocity = (shipMass * _ship.Velocity + asteroidMass * asteroid.Velocity) / totalMass;
 
-            // Apply combined velocity to both bodies
             asteroid.Velocity = combinedVelocity;
             _ship.Velocity = combinedVelocity;
             _ship.Position = asteroid.Position;
@@ -791,7 +720,9 @@ namespace DustInterceptor
 
         private float ComputeShipMass()
         {
-            float cargo = _shipIce + _shipIron + _shipRock;
+            float cargo = 0f;
+            foreach (var kv in _shipCargo)
+                cargo += kv.Value;
             float mass = _config.BaseShipMass + cargo;
             return mass <= 0.001f ? 0.001f : mass;
         }

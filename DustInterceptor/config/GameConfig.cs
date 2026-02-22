@@ -99,10 +99,11 @@ namespace DustInterceptor
         public Color PlanetBandColor2 = new(80, 100, 150);    // Lighter swirl color
 
         // === Asteroid Colors ===
+        /// <summary>
+        /// Color for depleted asteroids with no materials remaining.
+        /// Material-specific colors are now defined in MaterialDefinitions.
+        /// </summary>
         public Color AsteroidDepletedColor = new(50, 50, 50);
-        public Color AsteroidIceColor = new(200, 230, 255);
-        public Color AsteroidIronColor = new(90, 90, 100);
-        public Color AsteroidRockColor = new(140, 110, 80);
 
         // === Performance / LOD ===
         /// <summary>
