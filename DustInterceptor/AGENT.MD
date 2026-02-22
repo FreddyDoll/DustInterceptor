@@ -87,15 +87,8 @@ We are currently past the Orbit Sandbox and have:
 ## Next Tickets (Agent Mode – do one at a time)
 
 
-### Ticket U1 — Rework Ressource System
-**Goal** make it easy to add new Materials and extend Material properties.
-- Iplement a similar system to Upgrades.
-- Remove hardcoded Ice/Iron/Rock properties from Asteroid and Ship.
-- Add density to Material and use it to calculate Ateroid radius
-**Acceptance Criteria**
-- New Material struct with properties (e.g., density, color)
-- Asteroid and Ship use Material references instead of hardcoded types
-- Asteroid radius calculated from material amount and density
+### Ticket U1 — Allow Player to drop materials
+- while flying. select material type with D-pad left/right, drop with B button
 
 ---
 

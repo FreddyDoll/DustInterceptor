@@ -16,7 +16,7 @@ namespace DustInterceptor
 
         // Ship
         public float ShipRadius = 180f;
-        public float SpawnRadius = 100_000f;
+        public float SpawnRadius = 200_000f;
 
         /// <summary>
         /// Base ship mass with empty cargo.
@@ -61,22 +61,23 @@ namespace DustInterceptor
                 Count = 4,
                 InnerRadius = 10_000f,
                 OuterRadius = 60_000f,
-                RadiusMin = 100f,
+                RadiusMin = 300f,
                 RadiusMax = 500f,
                 OrbitVariation = 0.002f,
                 MaterialBiases = new Dictionary<MaterialType, float>
                 {
                     { MaterialType.Ice, 0.1f },
-                    { MaterialType.Iron, 0.6f },
-                    { MaterialType.Rock, 0.3f }
+                    { MaterialType.Iron, 0.5f },
+                    { MaterialType.Rock, 0.2f },
+                    { MaterialType.Fuel, 0.1f }
                 }
             },
             new AsteroidBeltConfig
             {
                 Name = "Main Belt",
                 Count = 10000,
-                InnerRadius = 90_000f,
-                OuterRadius = 110_000f,
+                InnerRadius = 170_000f,
+                OuterRadius = 230_000f,
                 RadiusMin = 5f,
                 RadiusMax = 60f,
                 OrbitVariation = 0.01f,
@@ -84,23 +85,25 @@ namespace DustInterceptor
                 {
                     { MaterialType.Ice, 0.33f },
                     { MaterialType.Iron, 0.33f },
-                    { MaterialType.Rock, 0.34f }
+                    { MaterialType.Rock, 0.24f },
+                    { MaterialType.Fuel, 0.1f }
                 }
             },
             new AsteroidBeltConfig
             {
                 Name = "Outer Planets",
                 Count = 4,
-                InnerRadius = 200_000f,
-                OuterRadius = 350_000f,
+                InnerRadius = 400_000f,
+                OuterRadius = 750_000f,
                 RadiusMin = 1_000f,
                 RadiusMax = 8_000f,
-                OrbitVariation = 0.04f,
+                OrbitVariation = 0.1f,
                 MaterialBiases = new Dictionary<MaterialType, float>
                 {
-                    { MaterialType.Ice, 0.7f },
+                    { MaterialType.Ice, 0.6f },
                     { MaterialType.Iron, 0.1f },
-                    { MaterialType.Rock, 0.2f }
+                    { MaterialType.Rock, 0.2f },
+                    { MaterialType.Fuel, 0.1f }
                 }
             },
             new AsteroidBeltConfig
@@ -109,14 +112,15 @@ namespace DustInterceptor
                 Count = 1000,
                 InnerRadius = 1_000_000f,
                 OuterRadius = 2_000_000f,
-                RadiusMin = 100f,
-                RadiusMax = 800f,
-                OrbitVariation = 0.04f,
+                RadiusMin = 500f,
+                RadiusMax = 1200f,
+                OrbitVariation = 0.4f,
                 MaterialBiases = new Dictionary<MaterialType, float>
                 {
-                    { MaterialType.Ice, 0.7f },
+                    { MaterialType.Ice, 0.6f },
                     { MaterialType.Iron, 0.1f },
-                    { MaterialType.Rock, 0.2f }
+                    { MaterialType.Rock, 0.2f },
+                    { MaterialType.Fuel, 0.1f }
                 }
             }
         ];

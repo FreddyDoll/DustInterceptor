@@ -80,6 +80,10 @@ namespace DustInterceptor
             foreach (var matType in MaterialDefinitions.AllTypes)
                 _shipCargo[matType] = 0f;
 
+            // Seed some starting fuel so the player can fly immediately.
+            if (_shipCargo.ContainsKey(MaterialType.Fuel))
+                _shipCargo[MaterialType.Fuel] = 250f;
+
             // Planet at origin
             _planet = new Body
             {
@@ -145,7 +149,11 @@ namespace DustInterceptor
                     float totalRaw = 0f;
                     foreach (var matType in materialTypes)
                     {
-                        float weight = (belt.GetMaterialBias(matType) / totalBias)
+                        float bias = belt.GetMaterialBias(matType);
+                        if (bias <= 0f)
+                            continue;
+
+                        float weight = (bias / MathF.Max(totalBias, 0.0001f))
                                      * (0.5f + (float)_rng.NextDouble());
                         rawWeights[matType] = weight;
                         totalRaw += weight;
@@ -156,7 +164,13 @@ namespace DustInterceptor
                     var materials = new Dictionary<MaterialType, float>();
                     foreach (var matType in materialTypes)
                     {
-                        materials[matType] = (rawWeights[matType] / totalRaw) * materialScale;
+                        if (!rawWeights.TryGetValue(matType, out var w) || totalRaw <= 0.0001f)
+                        {
+                            materials[matType] = 0f;
+                            continue;
+                        }
+
+                        materials[matType] = (w / totalRaw) * materialScale;
                     }
 
                     _asteroids[index++] = new Asteroid
@@ -232,7 +246,7 @@ namespace DustInterceptor
         /// <summary>
         /// Updates the simulation in flight mode.
         /// </summary>
-        public void UpdateFlight(float realDt, int timeScale, Vector2 impulseAim, bool fireImpulse, float maxImpulse, float impulseCooldown)
+        public void UpdateFlight(float realDt, int timeScale, Vector2 impulseAim, bool fireImpulse, float maxImpulse, float impulseCooldown, float specificImpulse = 250f)
         {
             // Check if we've cleared the ignored asteroid
             if (_ignoreAsteroidIndex >= 0 && _ignoreAsteroidIndex < _asteroids.Length)
@@ -269,14 +283,32 @@ namespace DustInterceptor
             // Apply impulse in ship's forward direction (not aim direction)
             if (fireImpulse && _impulseCooldownLeft <= 0f && aimMagnitude > 0.001f)
             {
-                // Get ship's forward direction
-                Vector2 forward = ShipForward;
-                float shipMass = ComputeShipMass();
+                // deltaV magnitude is aimMagnitude (impulseAim is already scaled by strength)
+                float deltaV = aimMagnitude;
 
-                var deltaV = forward * aimMagnitude;
+                float isp = MathF.Max(1f, specificImpulse);
+                float g0 = 9.80665f;
 
-                _ship.Velocity += deltaV;
-                _impulseCooldownLeft = impulseCooldown;
+                // Approx rocket equation (fuel mass needed for desired deltaV):
+                // m_prop = m0 * (1 - exp(-dv/(Isp*g0)))
+                float m0 = ComputeShipMass();
+                float requiredFuel = m0 * (1f - MathF.Exp(-deltaV / (isp * g0)));
+
+                float availableFuel = GetResource(MaterialType.Fuel);
+                if (availableFuel > 0.0001f)
+                {
+                    float fuelToSpend = Math.Min(availableFuel, requiredFuel);
+
+                    // If we can't afford full burn, scale deltaV proportionally (simple approximation)
+                    float dvScale = requiredFuel > 0.0001f ? (fuelToSpend / requiredFuel) : 1f;
+                    dvScale = Clamp(dvScale, 0f, 1f);
+
+                    Vector2 forward = ShipForward;
+                    _ship.Velocity += forward * (deltaV * dvScale);
+
+                    _shipCargo[MaterialType.Fuel] = availableFuel - fuelToSpend;
+                    _impulseCooldownLeft = impulseCooldown;
+                }
             }
 
             // Collision detection

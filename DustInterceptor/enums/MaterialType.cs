@@ -8,6 +8,7 @@ namespace DustInterceptor
     {
         Ice,
         Iron,
-        Rock
+        Rock,
+        Fuel
     }
 }

@@ -9,6 +9,7 @@ namespace DustInterceptor
         // === Impulse/Thruster ===
         ImpulseStrength,
         ImpulseCooldown,
+        SpecificImpulse,
 
         // === Time Control ===
         MaxTimeScale,

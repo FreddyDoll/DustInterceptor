@@ -12,6 +12,7 @@ namespace DustInterceptor
         private readonly Desktop _desktop;
         private readonly Label _timeScaleLabel;
         private readonly Label _gameTimeLabel;
+        private readonly Label _fuelLabel;
         private readonly float _fontScale;
 
         private double _simulationTime; // Total simulation time in seconds (affected by time scale)
@@ -55,6 +56,14 @@ namespace DustInterceptor
             };
             stack.Widgets.Add(_timeScaleLabel);
 
+            _fuelLabel = new Label
+            {
+                Text = "Fuel: 0",
+                TextColor = new Color(255, 220, 140),
+                Scale = new Vector2(_fontScale)
+            };
+            stack.Widgets.Add(_fuelLabel);
+
             panel.Widgets.Add(stack);
             _desktop.Root = panel;
         }
@@ -62,7 +71,7 @@ namespace DustInterceptor
         /// <summary>
         /// Updates the HUD display.
         /// </summary>
-        public void Update(float realDt, int timeScale)
+        public void Update(float realDt, int timeScale, float fuel = 0f)
         {
             // Accumulate simulation time
             _simulationTime += realDt * timeScale;
@@ -76,6 +85,9 @@ namespace DustInterceptor
 
             // Time scale display
             _timeScaleLabel.Text = $"x{timeScale}";
+
+            // Fuel display
+            _fuelLabel.Text = $"Fuel: {(int)fuel}";
 
             // Color based on time scale
             _timeScaleLabel.TextColor = timeScale switch

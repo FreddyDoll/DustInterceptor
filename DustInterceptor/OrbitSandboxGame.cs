@@ -144,7 +144,7 @@ namespace DustInterceptor
 
             // ----- Update HUD -----
             int currentTimeScale = (int)_upgrades.Get(UpgradeType.MaxTimeScale).Definition.GetValue(_timeScaleIndex);
-            _hud.Update(realDt, currentTimeScale);
+            _hud.Update(realDt, currentTimeScale, fuel: _world.GetResource(MaterialType.Fuel));
 
             // Gate: asteroid tracking requires the Asteroid Tracker unlock
             bool hasAsteroidTracker = _upgrades.IsUnlocked(UpgradeType.AsteroidTracker);
@@ -258,6 +258,7 @@ namespace DustInterceptor
             // Get current upgrade values
             float maxImpulse = _upgrades.GetValue(UpgradeType.ImpulseStrength);
             float cooldown = _upgrades.GetValue(UpgradeType.ImpulseCooldown);
+            float specificImpulse = _upgrades.GetValue(UpgradeType.SpecificImpulse);
 
             // ----- Input: impulse aim (left stick) -----
             var ls = gp.ThumbSticks.Left;
@@ -274,7 +275,7 @@ namespace DustInterceptor
             // ----- Update simulation -----
             int currentTimeScale = (int)_upgrades.Get(UpgradeType.MaxTimeScale).Definition.GetValue(_timeScaleIndex);
             _world.UpdateFlight(realDt, currentTimeScale, _impulseAim, fireImpulse, maxImpulse, 
-                cooldown);
+                cooldown, specificImpulse);
 
             // Hide mining UI
             _miningUi.Hide();
@@ -609,6 +610,8 @@ namespace DustInterceptor
                     continue;
                 }
 
+                a.UpdateRadius();
+
                 // Set per-asteroid parameters using material dictionary
                 _asteroidEffect.Parameters["IceRatio"]?.SetValue(a.GetMaterial(MaterialType.Ice) / total);
                 _asteroidEffect.Parameters["IronRatio"]?.SetValue(a.GetMaterial(MaterialType.Iron) / total);
@@ -629,27 +632,6 @@ namespace DustInterceptor
                 rasterizerState: RasterizerState.CullNone,
                 effect: null,
                 transformMatrix: _camera.GetViewMatrix(GraphicsDevice));
-        }
-
-        private Color GetAsteroidColor(ref Asteroid a)
-        {
-            float total = a.TotalMaterials;
-            if (total < 0.001f)
-            {
-                return _config.AsteroidDepletedColor;
-            }
-
-            float r = 0f, g = 0f, b = 0f;
-            foreach (var matType in MaterialDefinitions.AllTypes)
-            {
-                float ratio = a.GetMaterial(matType) / total;
-                var color = MaterialDefinitions.Get(matType).Color;
-                r += ratio * color.R;
-                g += ratio * color.G;
-                b += ratio * color.B;
-            }
-
-            return new Color((int)r, (int)g, (int)b);
         }
 
         private void DrawCircleWorld(Vector2 center, float radiusWorld, Color color)
@@ -793,27 +775,5 @@ namespace DustInterceptor
         private static float Clamp(float v, float min, float max) =>
             (v < min) ? min : (v > max) ? max : v;
         #endregion
-    }
-    
-    /// <summary>
-    /// Camera control modes for flight.
-    /// Y button cycles through these modes in flight.
-    /// </summary>
-    public enum CameraMode
-    {
-        /// <summary>
-        /// Camera is locked to follow the ship.
-        /// </summary>
-        LockedToShip,
-
-        /// <summary>
-        /// Target selection mode - right stick moves cursor to select asteroids.
-        /// </summary>
-        TargetSelection,
-
-        /// <summary>
-        /// Free pan mode - right stick pans camera freely.
-        /// </summary>
-        FreePan
     }
 }

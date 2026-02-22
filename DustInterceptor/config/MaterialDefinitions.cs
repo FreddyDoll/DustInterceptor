@@ -49,7 +49,7 @@ namespace DustInterceptor
                 Type = MaterialType.Ice,
                 Name = "Ice",
                 Color = new Color(200, 230, 255),
-                Density = 0.9f
+                Density = 0.0001f
             });
 
             Register(new MaterialDefinition
@@ -57,7 +57,7 @@ namespace DustInterceptor
                 Type = MaterialType.Iron,
                 Name = "Iron",
                 Color = new Color(90, 90, 100),
-                Density = 7.8f
+                Density = 0.0001f
             });
 
             Register(new MaterialDefinition
@@ -65,7 +65,15 @@ namespace DustInterceptor
                 Type = MaterialType.Rock,
                 Name = "Rock",
                 Color = new Color(140, 110, 80),
-                Density = 2.5f
+                Density = 0.0001f
+            });
+
+            Register(new MaterialDefinition
+            {
+                Type = MaterialType.Fuel,
+                Name = "Fuel",
+                Color = new Color(255, 200, 80),
+                Density = 0.00005f
             });
         }
 

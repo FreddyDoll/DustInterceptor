@@ -110,6 +110,6 @@ namespace DustInterceptor
         /// Minimum asteroid size in screen pixels to be rendered.
         /// Asteroids smaller than this on screen will be culled.
         /// </summary>
-        public float MinAsteroidScreenSize = 2f;
+        public float MinAsteroidScreenSize = 0.1f;
     }
 }

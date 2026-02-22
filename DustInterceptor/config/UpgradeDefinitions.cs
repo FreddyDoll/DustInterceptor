@@ -39,6 +39,20 @@ namespace DustInterceptor
                 MaxLevel = 3  
             });
 
+            manager.Register(new UpgradeDefinition
+            {
+                Type = UpgradeType.SpecificImpulse,
+                Name = "Isp",
+                Description = "More efficient thrusters (less fuel per impulse)",
+                Category = UpgradeCategory.Propulsion,
+                CostResource = MaterialType.Fuel,
+                BaseCost = 50f,
+                CostMultiplier = 1.7f,
+                BaseValue = 250f,
+                ValuePerLevel = 50f,
+                MaxLevel = 6
+            });
+
             // === Time Control Upgrades ===
             manager.Register(new UpgradeDefinition
             {
