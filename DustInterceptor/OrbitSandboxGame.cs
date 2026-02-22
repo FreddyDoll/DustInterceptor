@@ -56,6 +56,9 @@ namespace DustInterceptor
         // Impulse state
         private Vector2 _impulseAim;
 
+        // Drop materials (U1)
+        private const float DropAmountPerPress = 10f;
+
         public OrbitSandboxGame()
         {
             _graphics = new GraphicsDeviceManager(this);
@@ -144,7 +147,12 @@ namespace DustInterceptor
 
             // ----- Update HUD -----
             int currentTimeScale = (int)_upgrades.Get(UpgradeType.MaxTimeScale).Definition.GetValue(_timeScaleIndex);
-            _hud.Update(realDt, currentTimeScale, fuel: _world.GetResource(MaterialType.Fuel));
+            _hud.Update(
+                realDt,
+                currentTimeScale,
+                fuel: _world.GetResource(MaterialType.Fuel),
+                dropMaterial: _world.Mode == GameMode.Flight ? _world.SelectedDropMaterial : null,
+                dropAmount: _world.Mode == GameMode.Flight ? _world.GetResource(_world.SelectedDropMaterial) : 0f);
 
             // Gate: asteroid tracking requires the Asteroid Tracker unlock
             bool hasAsteroidTracker = _upgrades.IsUnlocked(UpgradeType.AsteroidTracker);
@@ -255,6 +263,15 @@ namespace DustInterceptor
 
         private void UpdateFlightMode(GamePadState gp, float realDt)
         {
+            // U1: cycle drop material with D-pad left/right, drop with B (flight only)
+            if (Pressed(gp.DPad.Left, _gpPrev.DPad.Left))
+                _world.CycleDropMaterial(-1);
+            if (Pressed(gp.DPad.Right, _gpPrev.DPad.Right))
+                _world.CycleDropMaterial(+1);
+
+            if (Pressed(gp.Buttons.B, _gpPrev.Buttons.B))
+                _world.DropSelectedMaterial(DropAmountPerPress);
+
             // Get current upgrade values
             float maxImpulse = _upgrades.GetValue(UpgradeType.ImpulseStrength);
             float cooldown = _upgrades.GetValue(UpgradeType.ImpulseCooldown);

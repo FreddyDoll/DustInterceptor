@@ -52,6 +52,9 @@ namespace DustInterceptor
         // Mining state
         private float _miningTransferRate;
 
+        // Drop materials
+        private MaterialType _selectedDropMaterial = MaterialType.Ice;
+
         public WorldSim(WorldSimConfig config)
         {
             _config = config;
@@ -239,6 +242,64 @@ namespace DustInterceptor
                 return true;
             }
             return false;
+        }
+
+        /// <summary>
+        /// Currently selected material type to drop while flying.
+        /// </summary>
+        public MaterialType SelectedDropMaterial => _selectedDropMaterial;
+
+        /// <summary>
+        /// Cycles the selected drop material, skipping Fuel.
+        /// </summary>
+        public void CycleDropMaterial(int direction)
+        {
+            // direction: -1 (left), +1 (right)
+            if (direction == 0)
+                return;
+
+            var types = MaterialDefinitions.AllTypes.ToArray();
+            if (types.Length == 0)
+                return;
+
+            int startIndex = Array.IndexOf(types, _selectedDropMaterial);
+            if (startIndex < 0)
+                startIndex = 0;
+
+            int idx = startIndex;
+            for (int attempts = 0; attempts < types.Length; attempts++)
+            {
+                idx = (idx + direction) % types.Length;
+                if (idx < 0) idx += types.Length;
+
+                var candidate = types[idx];
+                if (candidate == MaterialType.Fuel)
+                    continue;
+
+                _selectedDropMaterial = candidate;
+                return;
+            }
+        }
+
+        /// <summary>
+        /// Drops up to <paramref name="amount"/> of the currently selected drop material.
+        /// Returns the amount actually dropped.
+        /// </summary>
+        public float DropSelectedMaterial(float amount)
+        {
+            if (amount <= 0f)
+                return 0f;
+
+            if (_selectedDropMaterial == MaterialType.Fuel)
+                return 0f;
+
+            float have = GetResource(_selectedDropMaterial);
+            if (have <= 0.0001f)
+                return 0f;
+
+            float dropped = MathF.Min(have, amount);
+            _shipCargo[_selectedDropMaterial] = have - dropped;
+            return dropped;
         }
 
         // ===== Update methods =====

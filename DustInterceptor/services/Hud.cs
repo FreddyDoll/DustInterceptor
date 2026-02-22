@@ -13,6 +13,7 @@ namespace DustInterceptor
         private readonly Label _timeScaleLabel;
         private readonly Label _gameTimeLabel;
         private readonly Label _fuelLabel;
+        private readonly Label _dropLabel;
         private readonly float _fontScale;
 
         private double _simulationTime; // Total simulation time in seconds (affected by time scale)
@@ -64,6 +65,14 @@ namespace DustInterceptor
             };
             stack.Widgets.Add(_fuelLabel);
 
+            _dropLabel = new Label
+            {
+                Text = "Drop: Ice (0)",
+                TextColor = new Color(200, 200, 200),
+                Scale = new Vector2(_fontScale)
+            };
+            stack.Widgets.Add(_dropLabel);
+
             panel.Widgets.Add(stack);
             _desktop.Root = panel;
         }
@@ -71,7 +80,7 @@ namespace DustInterceptor
         /// <summary>
         /// Updates the HUD display.
         /// </summary>
-        public void Update(float realDt, int timeScale, float fuel = 0f)
+        public void Update(float realDt, int timeScale, float fuel = 0f, MaterialType? dropMaterial = null, float dropAmount = 0f)
         {
             // Accumulate simulation time
             _simulationTime += realDt * timeScale;
@@ -88,6 +97,18 @@ namespace DustInterceptor
 
             // Fuel display
             _fuelLabel.Text = $"Fuel: {(int)fuel}";
+
+            // Drop selection display (U1)
+            if (dropMaterial.HasValue)
+            {
+                string name = MaterialDefinitions.Get(dropMaterial.Value).Name;
+                _dropLabel.Text = $"Drop: {name} ({(int)dropAmount})";
+                _dropLabel.Visible = true;
+            }
+            else
+            {
+                _dropLabel.Visible = false;
+            }
 
             // Color based on time scale
             _timeScaleLabel.TextColor = timeScale switch
