@@ -67,6 +67,32 @@ namespace DustInterceptor
         /// </summary>
         public float TargetPredictedPathWidth = 12f;
 
+        // === Closest Approach ===
+        /// <summary>
+        /// Color for the line connecting ship and target at closest approach.
+        /// </summary>
+        public Color ClosestApproachLineColor = new(255, 255, 100, 160);
+
+        /// <summary>
+        /// Width of the closest approach connecting line.
+        /// </summary>
+        public float ClosestApproachLineWidth = 8f;
+
+        /// <summary>
+        /// Color for the marker diamonds at closest approach points.
+        /// </summary>
+        public Color ClosestApproachMarkerColor = new(255, 255, 100, 220);
+
+        /// <summary>
+        /// Radius of the closest approach marker ring in world units.
+        /// </summary>
+        public float ClosestApproachMarkerRadius = 300f;
+
+        /// <summary>
+        /// Thickness of the closest approach marker ring.
+        /// </summary>
+        public float ClosestApproachMarkerThickness = 6f;
+
         // === Background Grid ===
         public Color GridColor = new(40, 45, 55, 5);
         public float GridCircleSpacing = 100_000f;        // Distance between concentric circles

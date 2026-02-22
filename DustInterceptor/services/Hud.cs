@@ -14,6 +14,7 @@ namespace DustInterceptor
         private readonly Label _gameTimeLabel;
         private readonly Label _fuelLabel;
         private readonly Label _dropLabel;
+        private readonly Label _closestApproachLabel;
         private readonly float _fontScale;
 
         private double _simulationTime; // Total simulation time in seconds (affected by time scale)
@@ -73,6 +74,15 @@ namespace DustInterceptor
             };
             stack.Widgets.Add(_dropLabel);
 
+            _closestApproachLabel = new Label
+            {
+                Text = "",
+                TextColor = new Color(255, 255, 100),
+                Scale = new Vector2(_fontScale),
+                Visible = false
+            };
+            stack.Widgets.Add(_closestApproachLabel);
+
             panel.Widgets.Add(stack);
             _desktop.Root = panel;
         }
@@ -80,7 +90,8 @@ namespace DustInterceptor
         /// <summary>
         /// Updates the HUD display.
         /// </summary>
-        public void Update(float realDt, int timeScale, float fuel = 0f, MaterialType? dropMaterial = null, float dropAmount = 0f)
+        public void Update(float realDt, int timeScale, float fuel = 0f, MaterialType? dropMaterial = null, float dropAmount = 0f,
+            bool hasClosestApproach = false, float closestApproachDistance = 0f)
         {
             // Accumulate simulation time
             _simulationTime += realDt * timeScale;
@@ -108,6 +119,17 @@ namespace DustInterceptor
             else
             {
                 _dropLabel.Visible = false;
+            }
+
+            // Closest approach display
+            if (hasClosestApproach)
+            {
+                _closestApproachLabel.Text = $"Approach: {(int)closestApproachDistance}";
+                _closestApproachLabel.Visible = true;
+            }
+            else
+            {
+                _closestApproachLabel.Visible = false;
             }
 
             // Color based on time scale

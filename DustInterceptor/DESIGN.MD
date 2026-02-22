@@ -50,7 +50,7 @@ grow ship → install upgraded drive + collect fuel → escape system.
 - A small crew survived in a docked mining ship. but the systems are destroyed
 - Time to scavenge asteroids, upgrade the ship, and eventually escape the system!
 
-# Economy
+## Economy
 - Resources: 
 	- Ice, Iron, Rock (eventually more)
 -Upgrades:
@@ -58,23 +58,16 @@ grow ship → install upgraded drive + collect fuel → escape system.
 	- Lower Lavel stats (current system)
 	- Theres a set of Items that are bought with resources and give you a bonus/malus to Lower Lavel stats
 	- Instead of buying directly you get a shop at each asteroid with a random selection of items/upgrades (with some rules to avoid too much bad ones)
-- Current lower level stats with infos:
-	- Impulse Strength: how much velocity is added per impulse
-	- (remove) Impulse Cooldown: how long you have to wait between impulses
-	- (remove) Impulse Inaccuracy: how much random variation is added to the impulse direction
-    - Time Scale: how much faster time is passing
-	- Mining Speed: how fast resources are transferred while docked
-	- (seems not to be implemeted, the cargo should also increase the weight of the ship) Cargo Capacity: maximum amount of resources the ship can hold
-	- Prediction Length: how far ahead the trajectory preview simulates
-	- Zoom Range (Min Zoom Level): how far you can zoom out
-	- (Functionality implemented but not gated correctly) Asteroid Tracker (Unlock): enables selecting/tracking asteroid trajectories
 
 -- -
 
 ## Controls (As Implemented)
 - **Left Stick**: Aim impulse direction + strength
 - **X**: Fire impulse (adds inaccuracy, starts cooldown)
-- **Y**: Lock camera to ship
+- **Y**: Cycle through camera modes:
+  - *Locked*: camera follows ship, right stick has no effect
+  - *Target Selection*: right stick moves cursor reticle to select asteroid target (auto-highlight closest), A confirms target and returns to Locked
+  - *Free Pan*: right stick pans camera, allowing you to look around without moving the ship; pressing Y again returns to Locked
 - **Right Stick**: Pan camera (panning unlocks camera from ship) -> change camera is always locked on player, right stick gets available with upgrade (cursor to select an asteroid and track)
 - **LT**: Zoom out
 - **RT**: Zoom in
@@ -91,23 +84,10 @@ grow ship → install upgraded drive + collect fuel → escape system.
 - Gravity controlled via parameter `mu` (gravitational parameter)
 
 ### Player Ship ("Mining Ship")
-Current:
-- Circle with `Position`, `Velocity`, `Radius`
-
-Planned:
-- Mass/density-driven radius
-- Storage: materials (eventually align to Iron/Copper/Carbon/Water)
-- Upgrades affecting impulse, cooldown, accuracy, mining limits, etc.
+- needs update
 
 ### Asteroids
-Current:
-- `Position`, `Velocity`, `Radius`
-- Material composition: `Ice`, `Iron`, `Rock` (sums to ~1)
-- Color derived from composition
-
-Planned:
-- Expand material set to match gameplay economy
-- Mining tiers / requirements for larger bodies
+-needs update
 
 ---
 
@@ -125,10 +105,6 @@ Current gravity acceleration:
   - `v += a * dt`
   - `x += v * dt`
 
-### Time scaling
-- Discrete scale steps: `1, 2, 4, 8, 16, 32, 64`
-- Physics uses **sub-stepping** (up to 16) to maintain stability at high scales
-
 ### Orbit prediction
 - Predicts future ship path by simulating a copied ship state forward
 - Preview includes the currently aimed impulse (added to velocity before sim)
@@ -142,32 +118,3 @@ Current gravity acceleration:
 - Avoid Box2D unless we truly need complex contacts/constraints
 - Target scale: 100_000 asteroids + stable orbits + fast orbit preview
 
----
-
-## Upgrade System (Implemented)
-
-### Architecture
-Data-driven upgrade system located in:
-- `enums/UpgradeType.cs` - All upgrade type identifiers
-- `enums/UpgradeCategory.cs` - Categories for UI grouping
-- `enums/ResourceType.cs` - Resource types (Ice, Iron, Rock)
-- `models/UpgradeDefinition.cs` - Blueprint class for upgrade configuration
-- `services/UpgradeManager.cs` - Central state + purchase logic
-- `services/UpgradeDefinitions.cs` - All upgrade configs in one place
-
-### Adding New Upgrades
-To add a new upgrade:
-1. Add entry to `UpgradeType` enum
-2. Register in `UpgradeDefinitions.RegisterAll()` with configuration
-3. (Optional) Use the value in game code via `_upgrades.GetValue(UpgradeType.XXX)`
-
-### Future Upgrade Ideas
-- FuelEfficiency - Reduce fuel consumption per impulse
-- ShieldStrength - Survive asteroid collisions
-- SensorRange - See asteroid composition at distance
-- AutoPilot - Automatic intercept calculation
-- WarpDrive - Escape the system (win condition)
-
-
-## Thoughts on Economy
-- More Ressources needed. Gating of visiting a certain Belt. Move to a better system (similar to Upgrades)

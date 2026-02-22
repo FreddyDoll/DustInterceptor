@@ -46,6 +46,12 @@ namespace DustInterceptor
         private readonly List<Vector2> _targetPredictedPath = new();
         private int _selectedTargetIndex = -1;
 
+        // Closest approach between ship and target predicted paths
+        private Vector2 _closestApproachShipPos;
+        private Vector2 _closestApproachTargetPos;
+        private float _closestApproachDistance = float.MaxValue;
+        private bool _hasClosestApproach;
+
         // Impulse state
         private float _impulseCooldownLeft;
 
@@ -200,6 +206,27 @@ namespace DustInterceptor
         public IReadOnlyList<Vector2> PredictedPath => _predictedPath;
         public IReadOnlyList<Vector2> TargetPredictedPath => _targetPredictedPath;
         public int SelectedTargetIndex => _selectedTargetIndex;
+
+        /// <summary>
+        /// Position on the ship's predicted path at the closest approach point.
+        /// </summary>
+        public Vector2 ClosestApproachShipPos => _closestApproachShipPos;
+
+        /// <summary>
+        /// Position on the target's predicted path at the closest approach point.
+        /// </summary>
+        public Vector2 ClosestApproachTargetPos => _closestApproachTargetPos;
+
+        /// <summary>
+        /// Distance between ship and target at the closest approach point.
+        /// </summary>
+        public float ClosestApproachDistance => _closestApproachDistance;
+
+        /// <summary>
+        /// Whether a valid closest approach was found between the predicted paths.
+        /// </summary>
+        public bool HasClosestApproach => _hasClosestApproach;
+
         public GameMode Mode => _mode;
         public int DockedAsteroidIndex => _dockedAsteroidIndex;
 
@@ -410,8 +437,8 @@ namespace DustInterceptor
             // Prediction (using ship's current forward direction for impulse preview)
             UpdatePrediction(impulseAim);
 
-            // Update target prediction
-            UpdateTargetPrediction();
+            // Update target prediction and closest approach
+            UpdateTargetPredictionWithClosestApproach(impulseAim);
         }
 
         /// <summary>
@@ -547,6 +574,7 @@ namespace DustInterceptor
             // Clear prediction while docked
             _predictedPath.Clear();
             _targetPredictedPath.Clear();
+            _hasClosestApproach = false;
         }
 
         /// <summary>
@@ -607,6 +635,7 @@ namespace DustInterceptor
         {
             _selectedTargetIndex = -1;
             _targetPredictedPath.Clear();
+            _hasClosestApproach = false;
         }
 
         /// <summary>
@@ -709,9 +738,11 @@ namespace DustInterceptor
             }
         }
 
-        private void UpdateTargetPrediction()
+        private void UpdateTargetPredictionWithClosestApproach(Vector2 impulseAim)
         {
             _targetPredictedPath.Clear();
+            _hasClosestApproach = false;
+            _closestApproachDistance = float.MaxValue;
 
             if (_selectedTargetIndex < 0 || _selectedTargetIndex >= _asteroids.Length)
                 return;
@@ -723,24 +754,62 @@ namespace DustInterceptor
                 return;
             }
 
-            Vector2 pos = target.Position;
-            Vector2 vel = target.Velocity;
+            // Target state
+            Vector2 tPos = target.Position;
+            Vector2 tVel = target.Velocity;
 
-            float horizon = ComputeOneOrbitHorizonSeconds(pos, vel);
+            // Ship state (with impulse preview, same as UpdatePrediction)
+            Vector2 sPos = _ship.Position;
+            Vector2 forward = ShipForward;
+            var deltaV = forward * impulseAim.Length();
+            Vector2 sVel = _ship.Velocity + deltaV;
+
+            // Use the shorter of the two orbit horizons so both paths cover the same time
+            float shipHorizon = ComputeOneOrbitHorizonSeconds(sPos, sVel);
+            float targetHorizon = ComputeOneOrbitHorizonSeconds(tPos, tVel);
+            float horizon = Math.Min(shipHorizon, targetHorizon);
             horizon = Math.Min(_predictionHorizonSeconds, horizon);
             if (horizon <= 0.001f)
                 return;
 
             float dt = horizon / _config.PredictSteps;
 
+            float bestDistSq = float.MaxValue;
+            Vector2 bestShipPos = sPos;
+            Vector2 bestTargetPos = tPos;
+
             for (int i = 0; i <= _config.PredictSteps; i++)
             {
-                Vector2 acc = ComputeGravityAcceleration(pos);
-                vel += acc * dt;
-                pos += vel * dt;
+                // Step target
+                Vector2 tAcc = ComputeGravityAcceleration(tPos);
+                tVel += tAcc * dt;
+                tPos += tVel * dt;
 
+                // Step ship (in parallel)
+                Vector2 sAcc = ComputeGravityAcceleration(sPos);
+                sVel += sAcc * dt;
+                sPos += sVel * dt;
+
+                // Sample target path for rendering
                 if (i % _config.PredictSampleEvery == 0)
-                    _targetPredictedPath.Add(pos);
+                    _targetPredictedPath.Add(tPos);
+
+                // Check closest approach every step (not just sampled steps) for accuracy
+                float distSq = Vector2.DistanceSquared(sPos, tPos);
+                if (distSq < bestDistSq)
+                {
+                    bestDistSq = distSq;
+                    bestShipPos = sPos;
+                    bestTargetPos = tPos;
+                }
+            }
+
+            if (bestDistSq < float.MaxValue)
+            {
+                _closestApproachShipPos = bestShipPos;
+                _closestApproachTargetPos = bestTargetPos;
+                _closestApproachDistance = MathF.Sqrt(bestDistSq);
+                _hasClosestApproach = true;
             }
         }
 

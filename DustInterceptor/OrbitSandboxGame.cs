@@ -147,12 +147,15 @@ namespace DustInterceptor
 
             // ----- Update HUD -----
             int currentTimeScale = (int)_upgrades.Get(UpgradeType.MaxTimeScale).Definition.GetValue(_timeScaleIndex);
+            bool hasTracker = _upgrades.IsUnlocked(UpgradeType.AsteroidTracker);
             _hud.Update(
                 realDt,
                 currentTimeScale,
                 fuel: _world.GetResource(MaterialType.Fuel),
                 dropMaterial: _world.Mode == GameMode.Flight ? _world.SelectedDropMaterial : null,
-                dropAmount: _world.Mode == GameMode.Flight ? _world.GetResource(_world.SelectedDropMaterial) : 0f);
+                dropAmount: _world.Mode == GameMode.Flight ? _world.GetResource(_world.SelectedDropMaterial) : 0f,
+                hasClosestApproach: hasTracker && _world.HasClosestApproach,
+                closestApproachDistance: _world.ClosestApproachDistance);
 
             // Gate: asteroid tracking requires the Asteroid Tracker unlock
             bool hasAsteroidTracker = _upgrades.IsUnlocked(UpgradeType.AsteroidTracker);
@@ -399,6 +402,30 @@ namespace DustInterceptor
             if (_upgrades.IsUnlocked(UpgradeType.AsteroidTracker) && _world.SelectedTargetIndex >= 0)
             {
                 DrawPath(_world.TargetPredictedPath, _config.TargetPredictedPathColor, _config.TargetPredictedPathWidth);
+
+                // Draw closest approach indicator
+                if (_world.HasClosestApproach)
+                {
+                    // Draw connecting line between ship and target at closest approach
+                    DrawLineWorld(
+                        _world.ClosestApproachShipPos,
+                        _world.ClosestApproachTargetPos,
+                        _config.ClosestApproachLineColor,
+                        _config.ClosestApproachLineWidth);
+
+                    // Draw marker rings at both closest approach positions
+                    DrawRingWorld(
+                        _world.ClosestApproachShipPos,
+                        _config.ClosestApproachMarkerRadius,
+                        _config.ClosestApproachMarkerColor,
+                        _config.ClosestApproachMarkerThickness);
+
+                    DrawRingWorld(
+                        _world.ClosestApproachTargetPos,
+                        _config.ClosestApproachMarkerRadius,
+                        _config.ClosestApproachMarkerColor,
+                        _config.ClosestApproachMarkerThickness);
+                }
             }
 
             // Ship (using texture)

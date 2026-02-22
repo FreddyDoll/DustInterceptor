@@ -118,7 +118,7 @@ namespace DustInterceptor
                 CostResource = MaterialType.Ice,
                 BaseCost = 40f,
                 CostMultiplier = 1.6f,
-                BaseValue = 0.8f,   // Start more zoomed in (higher = more restrictive)
+                BaseValue = 0.008f,   // Start more zoomed in (higher = more restrictive)
                 FactorPerLevel = 0.5f, 
                 MaxLevel = 6  
             });
@@ -134,7 +134,7 @@ namespace DustInterceptor
                 CostMultiplier = 1f,  // One-time purchase
                 IsUnlock = true,
                 MaxLevel = 1
-            });
+            }, startingLevel: 1);
         }
     }
 }

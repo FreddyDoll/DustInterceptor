@@ -90,6 +90,11 @@ We are currently past the Orbit Sandbox and have:
 
 ## Next Tickets (Agent Mode – do one at a time)
 
+## Ticket 1:
+**goal** make the asteroid selection more helpful
+-currently we can select an asteroid and see it's path. 
+-show the next closest approch within the predicted paths
+
 
 ---
 
