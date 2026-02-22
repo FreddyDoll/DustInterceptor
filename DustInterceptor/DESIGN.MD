@@ -44,6 +44,7 @@ grow ship → install upgraded drive + collect fuel → escape system.
 	- -> OK
   - After mining 10 iron
 	- "If only"
+  - After 1 min of game time
 
 ## Story
 - An accident happened to a large ship

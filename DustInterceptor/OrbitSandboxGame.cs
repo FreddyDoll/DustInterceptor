@@ -36,10 +36,15 @@ namespace DustInterceptor
         // Upgrades
         private UpgradeManager _upgrades = null!;
 
+        // Events
+        private EventManager _events = null!;
+        private float _simulationTime;
+
         // UI
         private int _resolutionScale = 2;
         private MiningUi _miningUi = null!;
         private Hud _hud = null!;
+        private EventDialogUi _eventDialog = null!;
 
         // Time scale state
         private int _timeScaleIndex = 0;
@@ -88,6 +93,10 @@ namespace DustInterceptor
             _world.SetMiningTransferRate(_upgrades.GetValue(UpgradeType.MiningSpeed));
             _world.SetPredictionHorizon(_upgrades.GetValue(UpgradeType.PredictionLength));
 
+            // Initialize event system
+            _events = new EventManager();
+            EventDefinitions.RegisterAll(_events);
+
             // Camera defaults
             _camera.Zoom = _config.CameraZoomDefault;
             _camera.Position = _world.Ship.Position;
@@ -119,6 +128,7 @@ namespace DustInterceptor
             // Initialize UI
             _miningUi = new MiningUi(this, _resolutionScale);
             _hud = new Hud(this, _resolutionScale);
+            _eventDialog = new EventDialogUi(this, _resolutionScale);
         }
 
         protected override void Update(GameTime gameTime)
@@ -133,8 +143,22 @@ namespace DustInterceptor
 
             float realDt = (float)gameTime.ElapsedGameTime.TotalSeconds;
 
-            // Update shader time
+            // Update shader time (always ticks, even during events)
             _shaderTime += realDt;
+
+            // ----- Event dialog: blocks all other input while visible -----
+            if (_eventDialog.IsVisible)
+            {
+                if (_eventDialog.HandleInput(gp, _gpPrev))
+                {
+                    // Player dismissed the dialog
+                    _events.Dismiss();
+                }
+
+                _gpPrev = gp;
+                base.Update(gameTime);
+                return; // Skip all sim/flight/mining input while event dialog is up
+            }
 
             // Get current max time scale index from upgrades
             int maxTimeScaleIndex = _upgrades.GetLevel(UpgradeType.MaxTimeScale);
@@ -145,8 +169,23 @@ namespace DustInterceptor
             if (Pressed(gp.Buttons.LeftShoulder, _gpPrev.Buttons.LeftShoulder))
                 _timeScaleIndex = Math.Max(_timeScaleIndex - 1, 0);
 
-            // ----- Update HUD -----
+            // Compute current time scale for this frame
             int currentTimeScale = (int)_upgrades.Get(UpgradeType.MaxTimeScale).Definition.GetValue(_timeScaleIndex);
+
+            // Accumulate simulation time (scales with time warp)
+            _simulationTime += realDt * currentTimeScale;
+
+            // ----- Check for events -----
+            var firedEvent = _events.Update(_simulationTime, _world.ShipCargo);
+            if (firedEvent != null)
+            {
+                _eventDialog.Show(firedEvent);
+                _gpPrev = gp;
+                base.Update(gameTime);
+                return; // Pause immediately — dialog will be handled next frame
+            }
+
+            // ----- Update HUD -----
             bool hasTracker = _upgrades.IsUnlocked(UpgradeType.AsteroidTracker);
             _hud.Update(
                 realDt,
@@ -517,6 +556,7 @@ namespace DustInterceptor
             // Draw Myra UI on top
             _hud.Render();
             _miningUi.Render();
+            _eventDialog.Render();
 
             base.Draw(gameTime);
         }
