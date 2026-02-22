@@ -4,11 +4,6 @@ namespace DustInterceptor
 {
     public struct Asteroid
     {
-        /// <summary>
-        /// Density constant for asteroid mass calculation.
-        /// </summary>
-        private const float AsteroidDensity = 0.001f;
-
         public Vector2 Position;
         public Vector2 Velocity;
         public float Radius;
@@ -37,6 +32,6 @@ namespace DustInterceptor
         /// Mass of the asteroid, proportional to volume (radius^3).
         /// Uses a density constant for scaling.
         /// </summary>
-        public readonly float Mass => Radius * Radius * Radius * AsteroidDensity;
+        public readonly float Mass => TotalMaterials;
     }
 }

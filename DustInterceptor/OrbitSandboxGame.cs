@@ -254,7 +254,6 @@ namespace DustInterceptor
         {
             // Get current upgrade values
             float maxImpulse = _upgrades.GetValue(UpgradeType.ImpulseStrength);
-            float inaccuracy = _upgrades.GetValue(UpgradeType.ImpulseAccuracy);
             float cooldown = _upgrades.GetValue(UpgradeType.ImpulseCooldown);
 
             // ----- Input: impulse aim (left stick) -----
@@ -272,7 +271,7 @@ namespace DustInterceptor
             // ----- Update simulation -----
             int currentTimeScale = (int)_upgrades.Get(UpgradeType.MaxTimeScale).Definition.GetValue(_timeScaleIndex);
             _world.UpdateFlight(realDt, currentTimeScale, _impulseAim, fireImpulse, maxImpulse, 
-                inaccuracy, cooldown);
+                cooldown);
 
             // Hide mining UI
             _miningUi.Hide();

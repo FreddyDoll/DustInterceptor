@@ -19,10 +19,10 @@ namespace DustInterceptor
                 Description = "Increases thruster power",
                 Category = UpgradeCategory.Propulsion,
                 CostResource = ResourceType.Iron,
-                BaseCost = 50f,
-                CostMultiplier = 2f,
-                BaseValue = 10f,
-                ValuePerLevel = 5f
+                BaseCost = 20f,
+                CostMultiplier = 1.8f,
+                BaseValue = 20f,
+                ValuePerLevel = 2f
             });
 
             manager.Register(new UpgradeDefinition
@@ -33,24 +33,10 @@ namespace DustInterceptor
                 Category = UpgradeCategory.Propulsion,
                 CostResource = ResourceType.Iron,
                 BaseCost = 75f,
-                CostMultiplier = 2.5f,
-                BaseValue = 2.00f,
-                ValuePerLevel = -0.05f,  // Decreases with level
-                MaxLevel = 12  // Min cooldown of 0.15s
-            });
-
-            manager.Register(new UpgradeDefinition
-            {
-                Type = UpgradeType.ImpulseAccuracy,
-                Name = "Accuracy",
-                Description = "Reduces impulse spread",
-                Category = UpgradeCategory.Propulsion,
-                CostResource = ResourceType.Iron,
-                BaseCost = 60f,
-                CostMultiplier = 1.5f,
-                BaseValue = 0.05f,
-                ValuePerLevel = -0.005f,  // Decreases with level
-                MaxLevel = 8  // Min inaccuracy of 0.01
+                CostMultiplier = 1.9f,
+                BaseValue = 4.00f,
+                FactorPerLevel = 0.95f,  
+                MaxLevel = 12  
             });
 
             // === Time Control Upgrades ===
@@ -104,8 +90,9 @@ namespace DustInterceptor
                 CostResource = ResourceType.Ice,
                 BaseCost = 50f,
                 CostMultiplier = 1.1f,
-                BaseValue = 10f,  // Seconds of prediction
-                ValuePerLevel = 2f
+                BaseValue = 1f,  // Seconds of prediction
+                FactorPerLevel = 1.2f,
+                ValuePerLevel = 1f
             });
 
             manager.Register(new UpgradeDefinition
@@ -129,7 +116,7 @@ namespace DustInterceptor
                 Description = "Track asteroid trajectories",
                 Category = UpgradeCategory.Navigation,
                 CostResource = ResourceType.Iron,
-                BaseCost = 200f,
+                BaseCost = 1000f,
                 CostMultiplier = 1f,  // One-time purchase
                 IsUnlock = true,
                 MaxLevel = 1

@@ -6,8 +6,6 @@ namespace DustInterceptor
     {
         public Vector2 Position;
         public Vector2 Velocity;
-        public float Mass;
-        public float Density;
         public float Radius;
         
         /// <summary>

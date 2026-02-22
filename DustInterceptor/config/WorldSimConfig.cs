@@ -15,10 +15,11 @@ namespace DustInterceptor
         // Ship
         public float ShipRadius = 180f;
         public float SpawnRadius = 100_000f;
+
         /// <summary>
-        /// Ship mass used for inelastic collision calculations during docking.
+        /// Base ship mass with empty cargo.
         /// </summary>
-        public float ShipMass = 1.0f;
+        public float BaseShipMass = 100.0f;
 
         // === Ship Rotation (PID Controller) ===
         /// <summary>

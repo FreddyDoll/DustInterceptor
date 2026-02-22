@@ -92,8 +92,6 @@ namespace DustInterceptor
             {
                 Position = Vector2.Zero,
                 Velocity = Vector2.Zero,
-                Mass = 1f,
-                Density = 1f,
                 Radius = _config.PlanetRadius
             };
 
@@ -106,8 +104,6 @@ namespace DustInterceptor
             {
                 Position = startPos,
                 Velocity = tangentialDir * vCircular,
-                Density = 1f,
-                Mass = 1f,
                 Radius = _config.ShipRadius,
                 Rotation = MathF.PI / 2f, // Start pointing up (in velocity direction)
                 AngularVelocity = 0f
@@ -194,6 +190,11 @@ namespace DustInterceptor
         public float ImpulseCooldownLeft => _impulseCooldownLeft;
 
         /// <summary>
+        /// Current ship mass (base mass + cargo contribution).
+        /// </summary>
+        public float ShipMass => ComputeShipMass();
+
+        /// <summary>
         /// Gets the ship's current rotation angle in radians.
         /// </summary>
         public float ShipRotation => _ship.Rotation;
@@ -277,7 +278,7 @@ namespace DustInterceptor
         /// <summary>
         /// Updates the simulation in flight mode.
         /// </summary>
-        public void UpdateFlight(float realDt, int timeScale, Vector2 impulseAim, bool fireImpulse, float maxImpulse, float inaccuracy, float impulseCooldown)
+        public void UpdateFlight(float realDt, int timeScale, Vector2 impulseAim, bool fireImpulse, float maxImpulse, float impulseCooldown)
         {
             // Check if we've cleared the ignored asteroid
             if (_ignoreAsteroidIndex >= 0 && _ignoreAsteroidIndex < _asteroids.Length)
@@ -318,11 +319,11 @@ namespace DustInterceptor
             {
                 // Get ship's forward direction
                 Vector2 forward = ShipForward;
-                
-                // Apply impulse in forward direction, scaled by aim magnitude
-                float impulseMagnitude = aimMagnitude;
-                Vector2 scatter = RandomUnitVector2(_rng) * (inaccuracy * impulseMagnitude);
-                _ship.Velocity += forward * impulseMagnitude + scatter;
+                float shipMass = ComputeShipMass();
+
+                var deltaV = forward * aimMagnitude;
+
+                _ship.Velocity += deltaV;
                 _impulseCooldownLeft = impulseCooldown;
             }
 
@@ -608,11 +609,15 @@ namespace DustInterceptor
             _predictedPath.Clear();
 
             Vector2 pos = _ship.Position;
-            
-            // Use ship's forward direction scaled by aim magnitude for prediction
-            float aimMag = impulseAim.Length();
-            Vector2 predictedImpulse = aimMag > 0.001f ? ShipForward * aimMag : Vector2.Zero;
-            Vector2 vel = _ship.Velocity + predictedImpulse;
+
+            // Use same mass-scaled impulse preview as the real impulse.
+
+            // Get ship's forward direction
+            Vector2 forward = ShipForward;
+            float shipMass = ComputeShipMass();
+            var deltaV = forward * impulseAim.Length();
+
+            Vector2 vel = _ship.Velocity + deltaV;
 
             float dt = _predictionHorizonSeconds / _config.PredictSteps;
 
@@ -730,9 +735,11 @@ namespace DustInterceptor
 
             // Calculate perfectly inelastic collision velocity
             // v_final = (m_ship * v_ship + m_asteroid * v_asteroid) / (m_ship + m_asteroid)
-            float shipMass = _config.ShipMass;
+            float shipMass = ComputeShipMass();
             float asteroidMass = asteroid.Mass;
             float totalMass = shipMass + asteroidMass;
+            if (totalMass <= 0.001f)
+                totalMass = 0.001f;
 
             Vector2 combinedVelocity = (shipMass * _ship.Velocity + asteroidMass * asteroid.Velocity) / totalMass;
 
@@ -745,6 +752,13 @@ namespace DustInterceptor
         }
 
         // ===== Utils =====
+
+        private float ComputeShipMass()
+        {
+            float cargo = _shipIce + _shipIron + _shipRock;
+            float mass = _config.BaseShipMass + cargo;
+            return mass <= 0.001f ? 0.001f : mass;
+        }
 
         private static Vector2 RandomUnitVector2(Random rng)
         {
