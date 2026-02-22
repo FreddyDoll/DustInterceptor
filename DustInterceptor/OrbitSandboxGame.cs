@@ -323,23 +323,31 @@ namespace DustInterceptor
                     AsteroidMaterials = asteroid.Materials,
                     ShipCargo = new Dictionary<MaterialType, float>(_world.ShipCargo),
                     CurrentMiningSpeed = _upgrades.GetValue(UpgradeType.MiningSpeed),
-                    Upgrades = upgradeDataList
+                    Upgrades = upgradeDataList,
+                    TransferDirections = new Dictionary<MaterialType, int>(_world.TransferDirections)
                 });
             }
 
             // Handle UI input
-            var (action, upgradeType) = _miningUi.HandleInput(gp, _gpPrev);
+            var (action, upgradeType, material) = _miningUi.HandleInput(gp, _gpPrev);
             switch (action)
             {
+                case MiningAction.ToggleTransfer:
+                    if (material.HasValue)
+                    {
+                        _world.ToggleTransferDirection(material.Value);
+                    }
+                    break;
+
                 case MiningAction.PurchaseUpgrade:
-                    if (_upgrades.TryPurchase(upgradeType, GetResource, _world.TrySpendResource))
+                    if (upgradeType.HasValue && _upgrades.TryPurchase(upgradeType.Value, GetResource, _world.TrySpendResource))
                     {
                         // Update values that depend on upgrades
-                        if (upgradeType == UpgradeType.MiningSpeed)
+                        if (upgradeType.Value == UpgradeType.MiningSpeed)
                         {
                             _world.SetMiningTransferRate(_upgrades.GetValue(UpgradeType.MiningSpeed));
                         }
-                        else if (upgradeType == UpgradeType.PredictionLength)
+                        else if (upgradeType.Value == UpgradeType.PredictionLength)
                         {
                             _world.SetPredictionHorizon(_upgrades.GetValue(UpgradeType.PredictionLength));
                         }

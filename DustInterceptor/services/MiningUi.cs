@@ -14,6 +14,7 @@ namespace DustInterceptor
     {
         None,
         PurchaseUpgrade,
+        ToggleTransfer,
         Undock
     }
 
@@ -32,6 +33,8 @@ namespace DustInterceptor
 
         // Dynamic upgrade list
         public List<UpgradeDisplayData> Upgrades;
+
+        public Dictionary<MaterialType, int> TransferDirections; // -1: Unload, 0: None, 1: Load
     }
 
     /// <summary>
@@ -41,18 +44,19 @@ namespace DustInterceptor
     public sealed class MiningUi
     {
         private const int MaxUpgradeSlots = 10;
+        private const int MaxMaterialSlots = 10; // Reserve slots for materials
 
         private readonly Desktop _desktop;
         private readonly Panel _panel;
-        private readonly Label _asteroidInfoLabel;
-        private readonly Label _shipCargoLabel;
         private readonly Label _miningStatusLabel;
+        private readonly VerticalStackPanel _materialStack; // New stack for materials
         private readonly VerticalStackPanel _upgradeStack;
         private readonly float _fontScale;
 
         private int _menuSelection;
         private int _menuItemCount;
         private List<UpgradeDisplayData> _currentUpgrades = new();
+        private List<MaterialType> _currentMaterials = new(); // Track displayed materials
 
         public MiningUi(Game game, float uiScale = 1f)
         {
@@ -93,7 +97,7 @@ namespace DustInterceptor
             // Mining status (auto-transfer indicator)
             _miningStatusLabel = new Label
             {
-                Text = "[ TRANSFERRING... ]",
+                Text = "[ DOCKED ]",
                 TextColor = new Color(255, 200, 100),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 Scale = new Vector2(_fontScale),
@@ -101,36 +105,33 @@ namespace DustInterceptor
             };
             stack.Widgets.Add(_miningStatusLabel);
 
-            // Asteroid info
-            _asteroidInfoLabel = new Label
-            {
-                Text = "Asteroid:",
-                TextColor = Color.White,
-                Wrap = true,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Scale = new Vector2(_fontScale)
-            };
-            stack.Widgets.Add(_asteroidInfoLabel);
+            // Column header for materials
+            var materialHeaderGrid = new Grid { ColumnSpacing = S(10) };
+            materialHeaderGrid.ColumnsProportions.Add(new Proportion(ProportionType.Part));
+            materialHeaderGrid.ColumnsProportions.Add(new Proportion(ProportionType.Part));
+            materialHeaderGrid.ColumnsProportions.Add(new Proportion(ProportionType.Part));
 
-            // Separator
-            stack.Widgets.Add(new Label
-            {
-                Text = "------------",
-                TextColor = new Color(80, 80, 100),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Scale = new Vector2(_fontScale)
-            });
+            materialHeaderGrid.Widgets.Add(new Label { Text = "Asteroid", TextColor = Color.Gray, HorizontalAlignment = HorizontalAlignment.Center, Scale = new Vector2(_fontScale), GridColumn = 0 });
+            materialHeaderGrid.Widgets.Add(new Label { Text = "Transfer", TextColor = Color.Gray, HorizontalAlignment = HorizontalAlignment.Center, Scale = new Vector2(_fontScale), GridColumn = 1 });
+            materialHeaderGrid.Widgets.Add(new Label { Text = "Ship", TextColor = Color.Gray, HorizontalAlignment = HorizontalAlignment.Center, Scale = new Vector2(_fontScale), GridColumn = 2 });
+            stack.Widgets.Add(materialHeaderGrid);
 
-            // Ship cargo
-            _shipCargoLabel = new Label
+            // Material list stack
+            _materialStack = new VerticalStackPanel { Spacing = S(4) };
+            for (int i = 0; i < MaxMaterialSlots; i++)
             {
-                Text = "Ship:",
-                TextColor = new Color(255, 210, 80),
-                Wrap = true,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Scale = new Vector2(_fontScale)
-            };
-            stack.Widgets.Add(_shipCargoLabel);
+                var label = new Label
+                {
+                    Id = $"material_{i}",
+                    Text = "",
+                    TextColor = Color.White,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    Scale = new Vector2(_fontScale),
+                    Visible = false
+                };
+                _materialStack.Widgets.Add(label);
+            }
+            stack.Widgets.Add(_materialStack);
 
             // Separator
             stack.Widgets.Add(new Label
@@ -152,7 +153,7 @@ namespace DustInterceptor
 
             // Dynamic upgrade stack
             _upgradeStack = new VerticalStackPanel { Spacing = S(8) };
-            
+
             // Pre-create upgrade slot labels
             for (int i = 0; i < MaxUpgradeSlots; i++)
             {
@@ -230,45 +231,59 @@ namespace DustInterceptor
         /// </summary>
         public void UpdateData(MiningUiData data)
         {
-            // Build asteroid info text dynamically from material definitions
-            float asteroidTotal = 0f;
-            var asteroidLines = "Asteroid:\n";
-            if (data.AsteroidMaterials != null)
+            // Build material list
+            _currentMaterials = MaterialDefinitions.AllTypes.ToList();
+
+            bool anyTransferring = false;
+
+            for (int i = 0; i < MaxMaterialSlots; i++)
             {
-                foreach (var matType in MaterialDefinitions.AllTypes)
+                var label = _materialStack.Widgets[i] as Label;
+                if (label == null) continue;
+
+                if (i < _currentMaterials.Count)
                 {
-                    float amount = data.AsteroidMaterials.TryGetValue(matType, out float a) ? a : 0f;
+                    var matType = _currentMaterials[i];
+                    label.Visible = true;
+
+                    float asteroidAmount = data.AsteroidMaterials != null && data.AsteroidMaterials.TryGetValue(matType, out float a) ? a : 0f;
+                    float shipAmount = data.ShipCargo != null && data.ShipCargo.TryGetValue(matType, out float s) ? s : 0f;
                     var def = MaterialDefinitions.Get(matType);
-                    asteroidLines += $"  {def.Name}:  {amount:F1}\n";
-                    asteroidTotal += amount;
+
+                    int direction = 0;
+                    if (data.TransferDirections != null && data.TransferDirections.TryGetValue(matType, out int dir))
+                        direction = dir;
+
+                    string arrow = "  |  ";
+                    if (direction > 0)
+                    {
+                        arrow = " >>> ";
+                        anyTransferring = true;
+                    }
+                    else if (direction < 0)
+                    {
+                        arrow = " <<< ";
+                        anyTransferring = true;
+                    }
+
+                    label.Text = $"{asteroidAmount,6:F1} {arrow} {shipAmount,6:F1}  {def.Name}";
+                }
+                else
+                {
+                    label.Visible = false;
                 }
             }
 
-            _miningStatusLabel.Text = asteroidTotal > 0.1f 
-                ? $"[ TRANSFERRING {data.CurrentMiningSpeed:F0}/s ]" 
-                : "[ DEPLETED ]";
-            _miningStatusLabel.TextColor = asteroidTotal > 0.1f 
-                ? new Color(255, 200, 100) 
+            _miningStatusLabel.Text = anyTransferring
+                ? $"[ TRANSFERRING {data.CurrentMiningSpeed:F0}/s ]"
+                : "[ DOCKED - IDLE ]";
+            _miningStatusLabel.TextColor = anyTransferring
+                ? new Color(255, 200, 100)
                 : new Color(150, 150, 150);
-
-            _asteroidInfoLabel.Text = asteroidLines.TrimEnd('\n');
-
-            // Build ship cargo text dynamically
-            var shipLines = "Ship:\n";
-            if (data.ShipCargo != null)
-            {
-                foreach (var matType in MaterialDefinitions.AllTypes)
-                {
-                    float amount = data.ShipCargo.TryGetValue(matType, out float a) ? a : 0f;
-                    var def = MaterialDefinitions.Get(matType);
-                    shipLines += $"  {def.Name}:  {amount:F1}\n";
-                }
-            }
-            _shipCargoLabel.Text = shipLines.TrimEnd('\n');
 
             // Update upgrade list
             _currentUpgrades = data.Upgrades ?? new List<UpgradeDisplayData>();
-            _menuItemCount = _currentUpgrades.Count + 1; // +1 for undock
+            _menuItemCount = _currentMaterials.Count + _currentUpgrades.Count + 1; // Materials + Upgrades + Undock
 
             // Update upgrade labels
             for (int i = 0; i < MaxUpgradeSlots; i++)
@@ -280,12 +295,12 @@ namespace DustInterceptor
                 {
                     var upgrade = _currentUpgrades[i];
                     label.Visible = true;
-                    
-                    string valueDisplay = upgrade.IsUnlock 
+
+                    string valueDisplay = upgrade.IsUnlock
                         ? (upgrade.IsUnlocked ? "UNLOCKED" : "LOCKED")
                         : $"{upgrade.CurrentValue:F0}";
-                    
-                    string costDisplay = upgrade.CanUpgrade 
+
+                    string costDisplay = upgrade.CanUpgrade
                         ? $"{upgrade.NextCost:F0} {upgrade.CostResource}"
                         : "MAXED";
 
@@ -308,7 +323,7 @@ namespace DustInterceptor
         /// Handles input and returns any triggered action plus the upgrade type if applicable.
         /// Call this each frame when the UI is visible.
         /// </summary>
-        public (MiningAction action, UpgradeType upgradeType) HandleInput(GamePadState gp, GamePadState gpPrev)
+        public (MiningAction action, UpgradeType? upgrade, MaterialType? material) HandleInput(GamePadState gp, GamePadState gpPrev)
         {
             // Menu navigation (D-Pad)
             if (Pressed(gp.DPad.Up, gpPrev.DPad.Up))
@@ -322,24 +337,34 @@ namespace DustInterceptor
                 UpdateMenuHighlight();
             }
 
+            // Handle Material Selection (Toggle Direction)
+            if (Pressed(gp.Buttons.A, gpPrev.Buttons.A) || Pressed(gp.DPad.Left, gpPrev.DPad.Left) || Pressed(gp.DPad.Right, gpPrev.DPad.Right))
+            {
+                if (_menuSelection < _currentMaterials.Count)
+                {
+                    return (MiningAction.ToggleTransfer, null, _currentMaterials[_menuSelection]);
+                }
+            }
+
             // Purchase upgrade (A button)
             if (Pressed(gp.Buttons.A, gpPrev.Buttons.A))
             {
-                if (_menuSelection < _currentUpgrades.Count)
+                int upgradeIndex = _menuSelection - _currentMaterials.Count;
+                if (upgradeIndex >= 0 && upgradeIndex < _currentUpgrades.Count)
                 {
-                    var upgrade = _currentUpgrades[_menuSelection];
+                    var upgrade = _currentUpgrades[upgradeIndex];
                     if (upgrade.CanUpgrade && upgrade.CanAfford)
                     {
-                        return (MiningAction.PurchaseUpgrade, upgrade.Type);
+                        return (MiningAction.PurchaseUpgrade, upgrade.Type, null);
                     }
                 }
             }
 
             // Undock (B button - always works)
             if (Pressed(gp.Buttons.B, gpPrev.Buttons.B))
-                return (MiningAction.Undock, default);
+                return (MiningAction.Undock, null, null);
 
-            return (MiningAction.None, default);
+            return (MiningAction.None, null, null);
         }
 
         /// <summary>
@@ -352,6 +377,25 @@ namespace DustInterceptor
 
         private void UpdateMenuHighlight()
         {
+            // Update material labels
+            for (int i = 0; i < _currentMaterials.Count && i < MaxMaterialSlots; i++)
+            {
+                var label = _materialStack.Widgets[i] as Label;
+                if (label == null) continue;
+
+                bool selected = (i == _menuSelection);
+
+                // We just need to update color/prefix, text is updated in UpdateData mostly,
+                // but let's refresh prefix
+                string currentText = label.Text;
+                if (currentText.StartsWith("> ") || currentText.StartsWith("  "))
+                    currentText = currentText.Substring(2);
+
+                string prefix = selected ? "> " : "  ";
+                label.Text = prefix + currentText;
+                label.TextColor = selected ? new Color(100, 255, 150) : Color.White;
+            }
+
             // Update upgrade labels
             for (int i = 0; i < _currentUpgrades.Count && i < MaxUpgradeSlots; i++)
             {
@@ -359,14 +403,16 @@ namespace DustInterceptor
                 if (label == null) continue;
 
                 var upgrade = _currentUpgrades[i];
-                bool selected = (i == _menuSelection);
+                int menuIndex = _currentMaterials.Count + i;
+                bool selected = (menuIndex == _menuSelection);
                 string prefix = selected ? "> " : "  ";
 
-                string valueDisplay = upgrade.IsUnlock 
+                // Reconstruct text to ensure prefix is correct (similar logic to UpdateData but just prefix)
+                string valueDisplay = upgrade.IsUnlock
                     ? (upgrade.IsUnlocked ? "UNLOCKED" : "LOCKED")
                     : $"{upgrade.CurrentValue:F0}";
-                
-                string costDisplay = upgrade.CanUpgrade 
+
+                string costDisplay = upgrade.CanUpgrade
                     ? $"{upgrade.NextCost:F0} {upgrade.CostResource}"
                     : "MAXED";
 
@@ -391,9 +437,9 @@ namespace DustInterceptor
             var undockLabel = _panel.FindChildById("undock_btn") as Label;
             if (undockLabel != null)
             {
-                bool undockSelected = (_menuSelection == _menuItemCount - 1);
-                undockLabel.Text = (undockSelected ? "> " : "  ") + "[B] Undock";
-                undockLabel.TextColor = undockSelected ? new Color(100, 255, 150) : Color.White;
+                bool selected = (_menuSelection == _menuItemCount - 1);
+                undockLabel.Text = (selected ? "> " : "  ") + "[B] Undock";
+                undockLabel.TextColor = selected ? new Color(100, 255, 150) : Color.White;
             }
         }
 

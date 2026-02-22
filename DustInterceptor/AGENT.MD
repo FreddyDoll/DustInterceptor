@@ -33,9 +33,12 @@ We are currently past the Orbit Sandbox and have:
 - **LB/RB**: decrease/increase time scale (1/2/4/8/16/32/64)
 
 ### Mining
-- **D-Pad Up/Down**: move menu selection (highlight)
-- **A**: transfer materials (currently always transfers; selection is visual only unless refined)
+- **D-Pad Up/Down**: move menu selection (materials first, then upgrades, then undock)
+- **A / D-Pad Left / D-Pad Right**: (on material row) toggle transfer direction: Load (>>>) → Unload (<<<) → Idle (|) → Load
+- **A**: (on upgrade row) purchase upgrade if affordable
 - **B**: undock
+- UI shows combined material view: `asteroid amount | arrow | ship amount | name`
+- Transfer bandwidth is split evenly across all active material channels
 - UI is displayed via Myra panel when docked.
 
 ---
@@ -58,8 +61,9 @@ We are currently past the Orbit Sandbox and have:
 - Still single-threaded, simple data structures
 
 ### UI
-- Mining dock panel in top-left (Myra)
-- Shows docked asteroid materials and ship cargo
+- Mining dock panel centered on screen (Myra)
+- Combined material view with directional transfer arrows (>>>, <<<, |)
+- Per-material loading/unloading control via D-Pad/A
 - Controller-friendly labels + selection highlight
 
 ### Target Selection (Ticket G2)
@@ -86,9 +90,6 @@ We are currently past the Orbit Sandbox and have:
 
 ## Next Tickets (Agent Mode – do one at a time)
 
-
-### Ticket U1 — Allow Player to drop materials
-- while flying. select material type with D-pad left/right, drop with B button
 
 ---
 

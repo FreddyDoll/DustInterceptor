@@ -51,6 +51,7 @@ namespace DustInterceptor
 
         // Mining state
         private float _miningTransferRate;
+        private Dictionary<MaterialType, int> _transferDirections = new();
 
         // Drop materials
         private MaterialType _selectedDropMaterial = MaterialType.Ice;
@@ -81,7 +82,10 @@ namespace DustInterceptor
         {
             // Initialize cargo for all registered material types
             foreach (var matType in MaterialDefinitions.AllTypes)
+            {
                 _shipCargo[matType] = 0f;
+                _transferDirections[matType] = 1; // Default to Load from asteroid
+            }
 
             // Seed some starting fuel so the player can fly immediately.
             if (_shipCargo.ContainsKey(MaterialType.Fuel))
@@ -198,6 +202,23 @@ namespace DustInterceptor
         public int SelectedTargetIndex => _selectedTargetIndex;
         public GameMode Mode => _mode;
         public int DockedAsteroidIndex => _dockedAsteroidIndex;
+
+        /// <summary>
+        /// Directions for material transfer: 1 = Load (Asteroid->Ship), -1 = Unload (Ship->Asteroid), 0 = None
+        /// </summary>
+        public IReadOnlyDictionary<MaterialType, int> TransferDirections => _transferDirections;
+
+        public void ToggleTransferDirection(MaterialType material)
+        {
+            if (_transferDirections.ContainsKey(material))
+            {
+                int current = _transferDirections[material];
+                // Cycle: 1 (Load) -> -1 (Unload) -> 0 (None) -> 1 (Load)
+                if (current == 1) _transferDirections[material] = -1;
+                else if (current == -1) _transferDirections[material] = 0;
+                else _transferDirections[material] = 1;
+            }
+        }
 
         /// <summary>
         /// Ship cargo dictionary (read-only access).
@@ -450,20 +471,47 @@ namespace DustInterceptor
                 ref var asteroid = ref _asteroids[_dockedAsteroidIndex];
                 
                 // Transfer at rate scaled by time warp
-                float transferAmount = _miningTransferRate * realDt * timeScale;
+                float transferStep = _miningTransferRate * realDt * timeScale;
                 
-                // Calculate how much to transfer from each material type proportionally
-                float totalOnAsteroid = asteroid.TotalMaterials;
-                if (totalOnAsteroid > 0.001f)
+                // Count active transfers to distribute speed or prevent instant dumps
+                int activeCount = 0;
+                foreach (var matType in MaterialDefinitions.AllTypes)
                 {
+                    if (_transferDirections.TryGetValue(matType, out int dir) && dir != 0)
+                        activeCount++;
+                }
+                
+                if (activeCount > 0)
+                {
+                    // Distribute bandwidth across active transfers
+                    float transferPerMaterial = transferStep / activeCount;
+
+                    // We process each material based on its transfer direction
                     foreach (var matType in MaterialDefinitions.AllTypes)
                     {
-                        float available = asteroid.GetMaterial(matType);
-                        float ratio = available / totalOnAsteroid;
-                        float transfer = Math.Min(available, transferAmount * ratio);
+                        if (!_transferDirections.TryGetValue(matType, out int direction) || direction == 0)
+                            continue;
 
-                        asteroid.SetMaterial(matType, available - transfer);
-                        _shipCargo[matType] = GetResource(matType) + transfer;
+                        if (direction > 0) // Load: Asteroid -> Ship
+                        {
+                            float available = asteroid.GetMaterial(matType);
+                            if (available > 0.001f)
+                            {
+                                 float transfer = Math.Min(available, transferPerMaterial);
+                                 asteroid.SetMaterial(matType, available - transfer);
+                                 _shipCargo[matType] = GetResource(matType) + transfer;
+                            }
+                        }
+                        else // Unload: Ship -> Asteroid
+                        {
+                            float available = GetResource(matType);
+                            if (available > 0.001f)
+                            {
+                                float transfer = Math.Min(available, transferPerMaterial);
+                                _shipCargo[matType] = available - transfer;
+                                asteroid.SetMaterial(matType, asteroid.GetMaterial(matType) + transfer);
+                            }
+                        }
                     }
                 }
 
