@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Xna.Framework;
@@ -300,18 +300,16 @@ namespace DustInterceptor
             // Calculate aim magnitude for rotation logic
             float aimMagnitude = impulseAim.Length();
 
-            // Physics simulation (sub-stepped) - includes rotation controller
+            //Physics
             float simDt = _config.BaseDt * timeScale;
-            int subSteps = ClampInt(timeScale, 1, 16);
-            float dtSub = simDt / subSteps;
-
-            for (int i = 0; i < subSteps; i++)
+            //Step asteroids fully for performance
+            StepAsteroids(simDt);
+            StepBody(ref _ship, simDt);
+            // Physics simulation (sub-stepped) - includes rotation controller
+            float dtSub = simDt / timeScale;
+            for (int i = 0; i < timeScale; i++)
             {
-                // Update ship rotation with PD controller (sub-stepped for stability)
                 UpdateShipRotation(dtSub, impulseAim, aimMagnitude);
-                
-                StepBody(ref _ship, dtSub);
-                StepAsteroids(dtSub);
             }
 
             // Apply impulse in ship's forward direction (not aim direction)
@@ -434,15 +432,8 @@ namespace DustInterceptor
                 _ship.Velocity = asteroid.Velocity;
             }
 
-            // Physics still runs for active asteroids
             float simDt = _config.BaseDt * timeScale;
-            int subSteps = ClampInt(timeScale, 1, 16);
-            float dtSub = simDt / subSteps;
-
-            for (int i = 0; i < subSteps; i++)
-            {
-                StepAsteroids(dtSub);
-            }
+            StepAsteroids(simDt);
 
             // Keep ship stuck to asteroid after physics
             if (_dockedAsteroidIndex >= 0 && _dockedAsteroidIndex < _asteroids.Length)
@@ -619,7 +610,12 @@ namespace DustInterceptor
 
             Vector2 vel = _ship.Velocity + deltaV;
 
-            float dt = _predictionHorizonSeconds / _config.PredictSteps;
+            float horizon = ComputeOneOrbitHorizonSeconds(pos, vel);
+            horizon = Math.Min(_predictionHorizonSeconds, horizon);
+            if (horizon <= 0.001f)
+                return;
+
+            float dt = horizon / _config.PredictSteps;
 
             for (int i = 0; i <= _config.PredictSteps; i++)
             {
@@ -632,9 +628,6 @@ namespace DustInterceptor
             }
         }
 
-        /// <summary>
-        /// Updates the predicted path for the selected target asteroid.
-        /// </summary>
         private void UpdateTargetPrediction()
         {
             _targetPredictedPath.Clear();
@@ -652,7 +645,12 @@ namespace DustInterceptor
             Vector2 pos = target.Position;
             Vector2 vel = target.Velocity;
 
-            float dt = _predictionHorizonSeconds / _config.PredictSteps;
+            float horizon = ComputeOneOrbitHorizonSeconds(pos, vel);
+            horizon = Math.Min(_predictionHorizonSeconds, horizon);
+            if (horizon <= 0.001f)
+                return;
+
+            float dt = horizon / _config.PredictSteps;
 
             for (int i = 0; i <= _config.PredictSteps; i++)
             {
@@ -663,6 +661,40 @@ namespace DustInterceptor
                 if (i % _config.PredictSampleEvery == 0)
                     _targetPredictedPath.Add(pos);
             }
+        }
+
+        /// <summary>
+        /// Computes an approximate "one orbit" time horizon at the given state.
+        /// Uses orbital period from semi-major axis (works for ellipses):
+        /// a = 1 / (2/r - v^2/μ),  T = 2π * sqrt(a^3/μ)
+        /// Falls back to circular approximation when not on a bound (elliptic) orbit.
+        /// </summary>
+        private float ComputeOneOrbitHorizonSeconds(Vector2 position, Vector2 velocity)
+        {
+            float mu = Math.Max(_config.Mu, 0.001f);
+
+            float r = (position - _planet.Position).Length();
+            r = Math.Max(r, _planet.Radius * 0.85f);
+
+            float v2 = velocity.LengthSquared();
+
+            // Vis-viva: v^2 = μ(2/r - 1/a) => 1/a = 2/r - v^2/μ
+            float invA = (2f / r) - (v2 / mu);
+
+            // Bound orbit requires a > 0 (invA > 0). If invA <= 0, it's parabolic/hyperbolic.
+            if (invA > 1e-9f)
+            {
+                float a = 1f / invA;
+
+                // Kepler's third law.
+                float period = 2f * MathF.PI * MathF.Sqrt((a * a * a) / mu);
+                if (float.IsFinite(period) && period > 0.001f)
+                    return period;
+            }
+
+            // Fallback: local circular orbit period at current radius.
+            float circularPeriod = 2f * MathF.PI * MathF.Sqrt((r * r * r) / mu);
+            return (float.IsFinite(circularPeriod) && circularPeriod > 0.001f) ? circularPeriod : 0f;
         }
 
         // ===== Collision =====

@@ -50,7 +50,7 @@ namespace DustInterceptor
                 BaseCost = 100f,
                 CostMultiplier = 3f,
                 DiscreteValues = [1, 2, 4, 8, 16, 32, 64]  // Starting at x1, can unlock up to x64
-            }, startingLevel: 0);  // Starts at x1
+            }, startingLevel: 6);  // Starts at x1
 
             // === Mining Upgrades ===
             manager.Register(new UpgradeDefinition
@@ -89,9 +89,9 @@ namespace DustInterceptor
                 Category = UpgradeCategory.Navigation,
                 CostResource = ResourceType.Ice,
                 BaseCost = 50f,
-                CostMultiplier = 1.1f,
-                BaseValue = 1f,  // Seconds of prediction
-                FactorPerLevel = 1.2f,
+                CostMultiplier = 1.4f,
+                BaseValue = 1000f,  // Seconds of prediction
+                FactorPerLevel = 1.1f,
                 ValuePerLevel = 1f
             });
 
@@ -104,7 +104,7 @@ namespace DustInterceptor
                 CostResource = ResourceType.Ice,
                 BaseCost = 40f,
                 CostMultiplier = 1.6f,
-                BaseValue = 0.8f,   // Start more zoomed in (higher = more restrictive)
+                BaseValue = 0.002f,   // Start more zoomed in (higher = more restrictive)
                 FactorPerLevel = 0.5f, 
                 MaxLevel = 6  
             });
