@@ -92,16 +92,3 @@ We are currently past the Orbit Sandbox and have:
 
 ---
 
-### E3 – Game Loop Integration & Pause-on-Event
-**Goal:** Wire EventManager into the main update loop so events actually fire, pause the simulation, and resume on dismiss.
-
-**Files to modify:**
-- `OrbitSandboxGame.cs`:
-  - Add `EventManager _events` + `EventDialogUi _eventDialog` fields
-  - In `Initialize`: create EventManager, register definitions via `EventDefinitions.RegisterAll`
-  - **New GameMode value** `Event` in `enums/GameMode.cs` (or use a bool `_eventActive` flag on the game — simpler)
-  - In `Update`, *before* flight/mining update:
-    1. If `_eventDialog.IsVisible` → only handle dialog input (A to dismiss), skip all sim/flight/mining input
-    2. On dismiss → `_events.Dismiss()`, resume normal mode
-    3. If no dialog visible → call `_events.Update(simulationTime, shipCargo)`; if an event fires → `_eventDialog.Show(event)`
-  - Pass `simulation
