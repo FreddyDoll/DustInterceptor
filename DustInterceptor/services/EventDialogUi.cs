@@ -55,7 +55,9 @@ namespace DustInterceptor
                 Text = "== INCOMING TRANSMISSION ==",
                 TextColor = new Color(100, 200, 255),
                 HorizontalAlignment = HorizontalAlignment.Center,
-                Scale = new Vector2(_fontScale)
+                Scale = new Vector2(_fontScale),
+                Margin = new Myra.Graphics2D.Thickness(0, 0, 0, S(20))
+
             };
             stack.Widgets.Add(title);
 
