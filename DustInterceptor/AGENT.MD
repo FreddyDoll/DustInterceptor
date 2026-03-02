@@ -1,119 +1,121 @@
 ﻿<!-- AGENT.MD -->
-# Dust Interceptor – Agent Playbook (MonoGame + Myra)
 
-This repo is intentionally "vibecode-first": fast iteration, minimal dependencies, and code that stays easy to move around.
-We are currently past the Orbit Sandbox and have:
-- 1000 asteroid ring + gravity + time warp
-- docking/mining mode
-- spatial hash broadphase
-- Myra-based mining UI
-- Target selection with orbital path preview
+# RockHopper – Agent Plan (minimal prototype)
 
----
+## Ziel
+Neue Spielidee als schneller Prototyp mit minimalen Änderungen:
+- Statt Triebwerk-Fliegen: Spieler springt durch Abstoßen von Asteroiden (Impulse).
+- Keine UI (keine Myra Panels, kein Shop Screen).
+- Impulsvektor dreht sich mit der Rotationsrate des Asteroiden (neue Eigenschaft).
+- Stärke wird mit LT/RT gesteuert, mit **A** wird ausgelöst.
+- Spieler startet **gedockt** auf einem Asteroiden.
 
-## Build + Run
-- MonoGame (DesktopGL/Windows) assumed.
-- If UI text is missing or errors occur:
-  - Ensure you have a SpriteFont in Content (e.g. `UIFont.spritefont`) and content builds successfully.
-  - Set Myra to use it if needed (varies by Myra version).
-
----
-
-## Controls (current)
-### Flight
-- **Left Stick**: aim impulse direction + strength
-- **X**: apply impulse (inaccuracy + cooldown)
-- **Y**: cycle camera mode (Locked → Target Selection → Free Pan → Locked)
-- **Right Stick**: 
-  - *Locked mode*: no effect
-  - *Target Selection mode*: move gray cursor reticle (yellow highlight auto-selects closest asteroid)
-  - *Free Pan mode*: pan camera
-- **A**: (Target Selection mode) select highlighted asteroid as target AND return to ship lock
-- **LT/RT**: zoom out/in
-- **LB/RB**: decrease/increase time scale (1/2/4/8/16/32/64)
-
-### Mining
-- **D-Pad Up/Down**: move menu selection (materials first, then upgrades, then undock)
-- **A / D-Pad Left / D-Pad Right**: (on material row) toggle transfer direction: Load (>>>) → Unload (<<<) → Idle (|) → Load
-- **A**: (on upgrade row) purchase upgrade if affordable
-- **B**: undock
-- UI shows combined material view: `asteroid amount | arrow | ship amount | name`
-- Transfer bandwidth is split evenly across all active material channels
-- UI is displayed via Myra panel when docked.
+## Ausgangslage (Code-Check – relevante Stellen)
+- `OrbitSandboxGame.cs`:
+  - Flight/Mining Mode, Mining-UI via `MiningUi` (Myra).
+  - Impuls-Aim im Flight-Mode: **Left Stick**; Auslösen: **X**.
+  - Zoom: LT/RT.
+- `WorldSim.cs`:
+  - Docking/Undocking, Mining Transfer, Impuls/Cooldown, `ShipForward`/`ShipRotation`.
+- `models/Asteroid.cs`:
+  - Asteroid Daten (Rotation/Spin aktuell nicht offensichtlich).
 
 ---
 
-## Current Features (Status)
-### Simulation
-- Planet-centered gravity: `a = -mu * rHat / r^2` with min-radius clamp
-- Integration: semi-implicit Euler
-- Time scales: 1..64 with substeps (max 16)
-
-### World
-- 1000 asteroids spawned in ring with near-circular orbit velocity + variation
-- Asteroid sizes biased toward small (power distribution)
-- Materials: Ice / Iron / Rock (amount scaled by asteroid radius²)
-- Ship cargo: Ice / Iron / Rock
-- Docking on circle collision; ship "sticks" to asteroid while docked
-
-### Performance
-- Broadphase collision via spatial hash grid bucketing
-- Still single-threaded, simple data structures
-
-### UI
-- Mining dock panel centered on screen (Myra)
-- Combined material view with directional transfer arrows (>>>, <<<, |)
-- Per-material loading/unloading control via D-Pad/A
-- Controller-friendly labels + selection highlight
-
-### Target Selection (Ticket G2)
-- Y button cycles through 3 camera modes: Locked to Ship, Target Selection, Free Pan
-- In Target Selection mode:
-  - Camera stays locked to ship
-  - Right stick moves a gray cursor reticle relative to the ship
-  - Yellow highlight automatically jumps to closest asteroid (excludes ship)
-  - A button selects the highlighted asteroid AND returns to ship lock mode
-  - Selected target shows orbital path prediction (same physics as ship prediction)
-- Orange highlight ring around selected target
-- Target's predicted path rendered in orange
+## Milestone
+**MVP:** Start gedockt → Impulsrichtung rotiert mit Asteroid → Stärke per Trigger → A springt → Ship fliegt → kann wieder andocken.
 
 ---
 
-## Design Rules (keep the prototype stable)
-1. Keep dependencies light. Avoid physics engines unless needed.
-2. One "truth" for physics: prediction uses same gravity + integration order as sim.
-3. Keep Update deterministic; only random on impulse apply and initial spawn.
-4. Avoid per-frame allocations in hot paths.
-5. Prefer small, focused extractions over large architecture rewrites.
+## Tickets (in sinnvoller Reihenfolge)
+
+### RH0 – Repository/Build Safety (keine Feature-Arbeit)
+**Goal:** Sicherstellen, dass wir vor Änderungen reproduzierbar bauen können.
+- Projekt einmal bauen; grob checken ob Content/Assets vorhanden sind.
+
+**Acceptance**
+- Build ist grün.
 
 ---
 
-## Next Tickets (Agent Mode – do one at a time)
+### RH1 – Mining/Shop UI deaktivieren ("keine UI")
+**Goal:** Keine Myra UI mehr; Docking darf existieren, aber ohne Screen/Shop.
 
-## Ticket 1:
-**goal** make the asteroid selection more helpful
--currently we can select an asteroid and see it's path. 
--show the next closest approch within the predicted paths
+**Implementation Notes**
+- Minimal: `MiningUi` nicht instanziieren/rendern; Mining-Update-Flow nicht nutzen.
+- Option A (am kleinsten): `GameMode.Mining` als „Docked“ bestehen lassen, aber ohne UI/Upgrades.
+- Option B: Mining-Mode komplett entfernen und Docked-State separat behandeln (wahrscheinlich mehr Eingriff).
 
+**Tasks**
+- `OrbitSandboxGame`:
+  - Entfernen der `MiningUi`-Abhängigkeit (Init/Load/Draw/UpdateMiningMode).
+  - Wenn `WorldSim.Mode == Mining`: keine UI, nur `WorldSim.UpdateMining` (oder eine neue `UpdateDocked` die identisch ist).
+- `services/MiningUi.cs`:
+  - Vorläufig im Projekt lassen (nicht anfassen), aber nicht mehr verwenden.
+
+**Acceptance**
+- Spiel läuft ohne UI Overlay.
+- Docking verursacht kein UI aufpoppen.
+
+---
+
+### RH2 – Asteroid Rotation/Spin als Eigenschaft hinzufügen
+**Goal:** Jeder Asteroid hat `Rotation` und `RotationRate` (rad/s).
+
+**Tasks**
+- `models/Asteroid.cs`:
+  - Felder/Properties ergänzen: `Rotation`, `RotationRate`.
+- `WorldSim`:
+  - Beim Spawn: `RotationRate` zufällig (klein, +/-) initialisieren.
+  - In Update-Schritten: `Rotation += RotationRate * dt`.
+
+**Acceptance**
+- Asteroid Rotation ändert sich deterministisch mit der Zeit.
 
 ---
 
-## Agent Guidance (how to work on changes)
-- Prefer "move code" over rewriting logic.
-- Keep structs/arrays as-is until things are stable.
-- After extraction, optionally convert Asteroid/Body to small classes if needed (not now).
-- Add small unit-test-like debug helpers only if they help verify refactors (e.g., print counts).
+### RH3 – Spieler startet gedockt auf Asteroid
+**Goal:** Startzustand ist „Ship docked“ auf einem Asteroiden.
+
+**Tasks**
+- `WorldSim` Init/Constructor:
+  - Nach Asteroiden-Erzeugung: Start-Asteroid festlegen.
+  - Ship so positionieren, dass Docking konsistent ist (am Rand oder direkt auf Position + Radius).
+  - Docked-State setzen (`DockedAsteroidIndex`, `Mode = Mining` falls das der aktuelle Docked-Mechanismus ist).
+
+**Acceptance**
+- Direkt nach Start ist Ship „fest“ an einem Asteroiden.
 
 ---
 
-## Tuning Notes
-- If orbits drift too much at high time scales:
-  - increase max substeps (16→32) OR reduce `_baseDt`
-- If docking feels too "sticky":
-  - adjust pushSpeed on undock or add a short "collision grace" timer
-- Target selection cursor:
-  - Adjust `CursorSnapRadius` in GameConfig (default 5000 world units)
-  - Cursor speed scales inversely with zoom for consistent feel
-  - `CursorColor` = gray reticle, `HoveredAsteroidColor` = yellow auto-select highlight
+### RH4 – New Input Mapping: Trigger = Stärke, A = Jump
+**Goal:** Neue Steuerung ohne UI:
+- LT/RT steuern Impulsstärke.
+- A löst Impuls aus.
+
+**Tasks**
+- `OrbitSandboxGame.Update`:
+  - LT/RT dürfen nicht mehr Zoom sein.
+  - Zoom auf Shoulder (LB/RB) legen ODER Zoom fix lassen (minimal).
+- `OrbitSandboxGame` Mode-spezifisch:
+  - Im Docked-Mode: `strength01` aus Triggern berechnen.
+  - `fireImpulse = Pressed(A)`.
+
+**Acceptance**
+- Beim Drücken von A wird (sofern geladen/erlaubt) ein Impuls ausgelöst.
+- Stärke reagiert auf Trigger.
 
 ---
+
+### RH5 – Impulsrichtung rotiert mit Asteroid-Rotation
+**Goal:** Wenn gedockt: Impulsrichtung = Funktion aus Asteroid-Rotation (nicht aus Left Stick).
+
+**Design (minimal, robust)**
+- `dir = new Vector2(cos(rot), sin(rot))`.
+- Optional 90° Offset, damit es „tangential“ wirkt: `rot + PI/2`.
+- Stärke: `impulse = dir * (strength01 * maxImpulse)`.
+
+**Tasks**
+- `OrbitSandboxGame`:
+  - Wenn docked: `_impulseAim` nicht aus LeftStick, sondern aus Asteroid-Rotation berechnen.
+  - Impuls-Vektor weiterhin zeichnen (existierende
