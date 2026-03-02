@@ -60,7 +60,7 @@ namespace DustInterceptor
         private Dictionary<MaterialType, int> _transferDirections = new();
 
         // Drop materials
-        private MaterialType _selectedDropMaterial = MaterialType.Ice;
+        private MaterialType _selectedDropMaterial = MaterialType.HeavyExotics;
 
         public WorldSim(WorldSimConfig config)
         {
@@ -94,8 +94,8 @@ namespace DustInterceptor
             }
 
             // Seed some starting fuel so the player can fly immediately.
-            if (_shipCargo.ContainsKey(MaterialType.Fuel))
-                _shipCargo[MaterialType.Fuel] = 250f;
+            if (_shipCargo.ContainsKey(MaterialType.LightExotics))
+                _shipCargo[MaterialType.LightExotics] = 250f;
 
             // Planet at origin
             _planet = new Body
@@ -321,7 +321,9 @@ namespace DustInterceptor
                 if (idx < 0) idx += types.Length;
 
                 var candidate = types[idx];
-                if (candidate == MaterialType.Fuel)
+                if (candidate == MaterialType.LightExotics)
+                    continue;
+                if (candidate == MaterialType.Debris)
                     continue;
 
                 _selectedDropMaterial = candidate;
@@ -338,7 +340,9 @@ namespace DustInterceptor
             if (amount <= 0f)
                 return 0f;
 
-            if (_selectedDropMaterial == MaterialType.Fuel)
+            if (_selectedDropMaterial == MaterialType.LightExotics)
+                return 0f;
+            if (_selectedDropMaterial == MaterialType.Debris)
                 return 0f;
 
             float have = GetResource(_selectedDropMaterial);
@@ -403,7 +407,7 @@ namespace DustInterceptor
                 float m0 = ComputeShipMass();
                 float requiredFuel = m0 * (1f - MathF.Exp(-deltaV / (isp * g0)));
 
-                float availableFuel = GetResource(MaterialType.Fuel);
+                float availableFuel = GetResource(MaterialType.LightExotics);
                 if (availableFuel > 0.0001f)
                 {
                     float fuelToSpend = Math.Min(availableFuel, requiredFuel);
@@ -415,7 +419,7 @@ namespace DustInterceptor
                     Vector2 forward = ShipForward;
                     _ship.Velocity += forward * (deltaV * dvScale);
 
-                    _shipCargo[MaterialType.Fuel] = availableFuel - fuelToSpend;
+                    _shipCargo[MaterialType.LightExotics] = availableFuel - fuelToSpend;
                     _impulseCooldownLeft = impulseCooldown;
                 }
             }

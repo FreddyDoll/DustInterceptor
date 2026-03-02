@@ -29,18 +29,27 @@ Target vibe: **"Tiny Space Academy"**
 
 ## Gameplay Loop
 
-### Implemented
+### Lower Level Loop
 1. Orbit around planet
 2. Use camera modes to find an asteroid (free pan or target selection with tracker upgrade)
 3. Aim an impulse and watch predicted path + closest approach indicator
 4. Fire impulse → coast (fuel consumed via rocket equation with specific impulse)
 5. Collide with asteroid → dock automatically
 6. Mine / transfer materials / purchase upgrades at mining dock UI
-7. Undock and repeat — depleted asteroids are disabled on undock
-8. Drop excess cargo in flight (D-Pad to select material, B to jettison)
+	- Manage your mass and fuel carefully — more cargo means more inertia, but you need resources to upgrade and escape! 
+7. Undock and repeat
 
-### Target
-- Grow ship → install upgraded drive + collect fuel → escape system
+### Overall progression
+- Start after crash
+	- slightly higher orbit then main ring. no asteroids visible
+	- In the imidiate area there is debris of the carrier
+	- movement should feel "linear", no noticable impact of eliptical orbits yet
+	- Collext closly scatter debris to unlock game mechanics as tutorial
+	  - 2X time warp with usage cost
+	  - Asteroid Tracker with closest approach
+	  - cooldown mechanic with impulse fuel
+	  - higher zoom range -> main belt becomes visible
+- Progress inward to main ring
 
 ---
 
@@ -48,33 +57,57 @@ Target vibe: **"Tiny Space Academy"**
 
 ### Implemented
 - Event dialog system that pauses gameplay and blocks input until dismissed
-- Events fire based on configurable triggers:
-  - **Intro** (start of game): Introduction to the setting and controls
-  - **Iron10** (resource threshold: 10 Iron): Hint about upgrades
-  - **OneMinute** (60s simulation time): Hint about time compression
+- Events fire based on configurable triggers
 - Events are non-repeatable by default
 - Trigger types: `OnStartTrigger`, `ResourceThresholdTrigger`, `SimulationTimeTrigger`
-
-### Target
-- More events with branching choices (FTL-style)
-- Interaction screens at various milestones
 
 ---
 
 ## Story
-- An accident happened to a large ship
-- A small crew survived in a docked mining ship, but the systems are destroyed
-- Time to scavenge asteroids, upgrade the ship, and eventually escape the system!
+### Intro
+- A carrier with plans for the "genesis" mission to seed new planets has is entering the planet system
+- Event: "The plans for "Genesis" ar our only hope. But there are other forces who want us stopped"
+- Camera follows the carrier as it enters orbit.
+- Event "We are approaching A gas giant around "HR 5191".
+- Camera animates to Planet view.
+- Event "Swing by coming up"
+- Camera animates towards Carrier
+- At lowest point the engines fire
+- (white blank)
+- Come back to small Miner with scattered depris
+- -> pass over control to player
+
+### Stage 1: "Scattered Debris"
+- Tutorial stage with floating debris from the crash. No asteroids yet, but you can collect debris to unlock mechanics and upgrades.
+
+### Stage 2: "Main Ring"
+
+### Stage 3: "Inner Moons"
+
+### Stage 4: "Outer Moons"
 
 ---
 
 ## Economy
 
 ### Resources (Implemented)
-- **Ice** — used for navigation upgrades (Prediction, Zoom Range)
-- **Iron** — used for propulsion, time control, mining, and tracker upgrades
-- **Rock** — used for cargo capacity upgrades
-- **Fuel** — consumed on each impulse burn; 250 starting fuel; found on asteroids
+- **Light Exotics** 
+  — Upgrade Category: Propulsioon
+  - Upgrades: max Impulse, Cooldown, Isp
+  -	Fuel for Impulse.
+  - density: low
+- **Heavy Exotics** 
+  - Upgrade Category: Cryo System
+  - Upgrades: Max Time Warp, Usage costs.
+  -	Fuel for Timewarp.
+  - density: high.
+- **Metals**
+  — Upgrade Category: Structural 
+  - Upgrades:Cargo, Mining Speed, Zoom Range, Prediction
+  - density: medium.
+- **Debris** 
+  — Acts as unlock currency for gating
+  - density: high.
 
 ### Upgrades (Implemented)
 Upgrades are purchased at the mining dock UI using resources. Each upgrade has scaling costs.
@@ -92,8 +125,7 @@ Upgrades are purchased at the mining dock UI using resources. Each upgrade has s
 | Tracker | Navigation | Iron | Unlock: enables target selection mode + asteroid orbit preview |
 
 ### Target
-- Item shop at each asteroid with random selection (Brotato-style)
-- Items give bonus/malus to lower-level stats
+- Gating by events: max level is adjusted by events
 
 ---
 
@@ -189,8 +221,6 @@ Upgrades are purchased at the mining dock UI using resources. Each upgrade has s
 ---
 
 ## Performance
-- Spatial hash grid for collision broadphase and asteroid queries
-- LOD culling for asteroid rendering based on screen-space size
 - Single-threaded, simple data structures
 - Fixed 60 FPS target with vsync
 - Resolution: 1920×1080 × 2 (scale factor)

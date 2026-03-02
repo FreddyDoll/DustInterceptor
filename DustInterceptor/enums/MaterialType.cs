@@ -6,9 +6,9 @@ namespace DustInterceptor
     /// </summary>
     public enum MaterialType
     {
-        Ice,
-        Iron,
-        Rock,
-        Fuel
+        HeavyExotics,
+        LightExotics,
+        Metalls,
+        Debris
     }
 }

@@ -31,7 +31,7 @@ namespace DustInterceptor
         /// <summary>
         /// Material type used to purchase this upgrade.
         /// </summary>
-        public MaterialType CostResource { get; init; } = MaterialType.Iron;
+        public MaterialType CostResource { get; init; } = MaterialType.LightExotics;
 
         /// <summary>
         /// Base cost at level 0 (first purchase).

@@ -22,6 +22,7 @@ namespace DustInterceptor
         PredictionLength,
         MinZoomLevel,
         AsteroidTracker,
+        CryoUsage,
 
         // === Future ===
         // FuelEfficiency,

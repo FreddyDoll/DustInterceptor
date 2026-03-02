@@ -46,34 +46,34 @@ namespace DustInterceptor
         {
             Register(new MaterialDefinition
             {
-                Type = MaterialType.Ice,
-                Name = "Ice",
-                Color = new Color(200, 230, 255),
+                Type = MaterialType.HeavyExotics,
+                Name = "Heavy Exotics",
+                Color = new Color(200, 230, 255), //Light Blue
+                Density = 0.0004f
+            });
+
+            Register(new MaterialDefinition
+            {
+                Type = MaterialType.LightExotics,
+                Name = "Light Exotics",
+                Color = new Color(90, 90, 100),  //Light Green
                 Density = 0.0001f
             });
 
             Register(new MaterialDefinition
             {
-                Type = MaterialType.Iron,
-                Name = "Iron",
-                Color = new Color(90, 90, 100),
-                Density = 0.0001f
+                Type = MaterialType.Metalls,
+                Name = "Metalls",
+                Color = new Color(140, 110, 80), //Dark Gray
+                Density = 0.0002f
             });
 
             Register(new MaterialDefinition
             {
-                Type = MaterialType.Rock,
-                Name = "Rock",
-                Color = new Color(140, 110, 80),
-                Density = 0.0001f
-            });
-
-            Register(new MaterialDefinition
-            {
-                Type = MaterialType.Fuel,
-                Name = "Fuel",
-                Color = new Color(255, 200, 80),
-                Density = 0.00005f
+                Type = MaterialType.Debris,
+                Name = "Debris",
+                Color = new Color(255, 200, 80), //light Orange
+                Density = 0.0004f
             });
         }
 

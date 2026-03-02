@@ -34,10 +34,10 @@ namespace DustInterceptor
         /// </summary>
         public Dictionary<MaterialType, float> MaterialBiases { get; init; } = new()
         {
-            { MaterialType.Ice, 0.30f },
-            { MaterialType.Iron, 0.30f },
-            { MaterialType.Rock, 0.30f },
-            { MaterialType.Fuel, 0.10f }
+            { MaterialType.HeavyExotics, 0.3333f },
+            { MaterialType.LightExotics, 0.3333f },
+            { MaterialType.Metalls, 0.3333f },
+            { MaterialType.Debris, 0.0f }
         };
 
         /// <summary>

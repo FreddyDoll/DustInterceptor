@@ -57,7 +57,7 @@ namespace DustInterceptor
         [
             new AsteroidBeltConfig
             {
-                Name = "Inner Planets",
+                Name = "Inner Moons",
                 Count = 4,
                 InnerRadius = 10_000f,
                 OuterRadius = 60_000f,
@@ -66,15 +66,14 @@ namespace DustInterceptor
                 OrbitVariation = 0.002f,
                 MaterialBiases = new Dictionary<MaterialType, float>
                 {
-                    { MaterialType.Ice, 0.1f },
-                    { MaterialType.Iron, 0.5f },
-                    { MaterialType.Rock, 0.2f },
-                    { MaterialType.Fuel, 0.1f }
+                    { MaterialType.HeavyExotics, 0.4f },
+                    { MaterialType.LightExotics, 0.4f },
+                    { MaterialType.Metalls, 0.2f }
                 }
             },
             new AsteroidBeltConfig
             {
-                Name = "Main Belt",
+                Name = "Ring",
                 Count = 10000,
                 InnerRadius = 170_000f,
                 OuterRadius = 230_000f,
@@ -83,15 +82,14 @@ namespace DustInterceptor
                 OrbitVariation = 0.01f,
                 MaterialBiases = new Dictionary<MaterialType, float>
                 {
-                    { MaterialType.Ice, 0.33f },
-                    { MaterialType.Iron, 0.33f },
-                    { MaterialType.Rock, 0.24f },
-                    { MaterialType.Fuel, 0.1f }
+                    { MaterialType.HeavyExotics, 0.1f },
+                    { MaterialType.LightExotics, 0.45f },
+                    { MaterialType.Metalls, 0.45f }
                 }
             },
             new AsteroidBeltConfig
             {
-                Name = "Outer Planets",
+                Name = "Outer Moons",
                 Count = 4,
                 InnerRadius = 400_000f,
                 OuterRadius = 750_000f,
@@ -100,27 +98,9 @@ namespace DustInterceptor
                 OrbitVariation = 0.1f,
                 MaterialBiases = new Dictionary<MaterialType, float>
                 {
-                    { MaterialType.Ice, 0.6f },
-                    { MaterialType.Iron, 0.1f },
-                    { MaterialType.Rock, 0.2f },
-                    { MaterialType.Fuel, 0.1f }
-                }
-            },
-            new AsteroidBeltConfig
-            {
-                Name = "Outer Belt",
-                Count = 1000,
-                InnerRadius = 1_000_000f,
-                OuterRadius = 2_000_000f,
-                RadiusMin = 500f,
-                RadiusMax = 1200f,
-                OrbitVariation = 0.4f,
-                MaterialBiases = new Dictionary<MaterialType, float>
-                {
-                    { MaterialType.Ice, 0.6f },
-                    { MaterialType.Iron, 0.1f },
-                    { MaterialType.Rock, 0.2f },
-                    { MaterialType.Fuel, 0.1f }
+                    { MaterialType.HeavyExotics, 0.5f },
+                    { MaterialType.LightExotics, 0.5f },
+                    { MaterialType.Metalls, 0.0f }
                 }
             }
         ];

@@ -190,7 +190,7 @@ namespace DustInterceptor
             _hud.Update(
                 realDt,
                 currentTimeScale,
-                fuel: _world.GetResource(MaterialType.Fuel),
+                fuel: _world.GetResource(MaterialType.LightExotics),
                 dropMaterial: _world.Mode == GameMode.Flight ? _world.SelectedDropMaterial : null,
                 dropAmount: _world.Mode == GameMode.Flight ? _world.GetResource(_world.SelectedDropMaterial) : 0f,
                 hasClosestApproach: hasTracker && _world.HasClosestApproach,
@@ -651,9 +651,9 @@ namespace DustInterceptor
             float minAsteroidRadius = _config.MinAsteroidScreenSize / (2f * _camera.Zoom);
 
             // Set static asteroid shader parameters from MaterialDefinitions
-            var iceDef = MaterialDefinitions.Get(MaterialType.Ice);
-            var ironDef = MaterialDefinitions.Get(MaterialType.Iron);
-            var rockDef = MaterialDefinitions.Get(MaterialType.Rock);
+            var iceDef = MaterialDefinitions.Get(MaterialType.HeavyExotics);
+            var ironDef = MaterialDefinitions.Get(MaterialType.LightExotics);
+            var rockDef = MaterialDefinitions.Get(MaterialType.Metalls);
             _asteroidEffect.Parameters["IceColor"]?.SetValue(iceDef.Color.ToVector3());
             _asteroidEffect.Parameters["IronColor"]?.SetValue(ironDef.Color.ToVector3());
             _asteroidEffect.Parameters["RockColor"]?.SetValue(rockDef.Color.ToVector3());
@@ -705,9 +705,9 @@ namespace DustInterceptor
                 a.UpdateRadius();
 
                 // Set per-asteroid parameters using material dictionary
-                _asteroidEffect.Parameters["IceRatio"]?.SetValue(a.GetMaterial(MaterialType.Ice) / total);
-                _asteroidEffect.Parameters["IronRatio"]?.SetValue(a.GetMaterial(MaterialType.Iron) / total);
-                _asteroidEffect.Parameters["RockRatio"]?.SetValue(a.GetMaterial(MaterialType.Rock) / total);
+                _asteroidEffect.Parameters["IceRatio"]?.SetValue(a.GetMaterial(MaterialType.HeavyExotics) / total);
+                _asteroidEffect.Parameters["IronRatio"]?.SetValue(a.GetMaterial(MaterialType.LightExotics) / total);
+                _asteroidEffect.Parameters["RockRatio"]?.SetValue(a.GetMaterial(MaterialType.Metalls) / total);
                 _asteroidEffect.Parameters["Seed"]?.SetValue((float)(i * 7.31)); // Unique seed per asteroid
 
                 DrawCircleWorld(a.Position, a.Radius, Color.White);

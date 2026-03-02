@@ -18,11 +18,12 @@ namespace DustInterceptor
                 Name = "Impulse",
                 Description = "Increases thruster power",
                 Category = UpgradeCategory.Propulsion,
-                CostResource = MaterialType.Iron,
+                CostResource = MaterialType.LightExotics,
                 BaseCost = 20f,
                 CostMultiplier = 1.8f,
                 BaseValue = 20f,
-                ValuePerLevel = 2f
+                ValuePerLevel = 2f,
+                MaxLevel = 1,
             });
 
             manager.Register(new UpgradeDefinition
@@ -31,12 +32,12 @@ namespace DustInterceptor
                 Name = "Cooldown",
                 Description = "Reduces thruster cooldown",
                 Category = UpgradeCategory.Propulsion,
-                CostResource = MaterialType.Iron,
+                CostResource = MaterialType.LightExotics,
                 BaseCost = 75f,
                 CostMultiplier = 2f,
                 BaseValue = 12.00f,
-                FactorPerLevel = 0.5f,  
-                MaxLevel = 3  
+                FactorPerLevel = 0.5f,
+                MaxLevel = 1,
             });
 
             manager.Register(new UpgradeDefinition
@@ -45,40 +46,53 @@ namespace DustInterceptor
                 Name = "Isp",
                 Description = "More efficient thrusters (less fuel per impulse)",
                 Category = UpgradeCategory.Propulsion,
-                CostResource = MaterialType.Fuel,
+                CostResource = MaterialType.LightExotics,
                 BaseCost = 50f,
                 CostMultiplier = 1.7f,
                 BaseValue = 250f,
                 ValuePerLevel = 50f,
-                MaxLevel = 6
+                MaxLevel = 1,
             });
 
-            // === Time Control Upgrades ===
+            // === Cryo System Upgrades ===
             manager.Register(new UpgradeDefinition
             {
                 Type = UpgradeType.MaxTimeScale,
                 Name = "Time Warp",
                 Description = "Unlocks faster time compression",
-                Category = UpgradeCategory.TimeControl,
-                CostResource = MaterialType.Iron,
+                Category = UpgradeCategory.Cryo,
+                CostResource = MaterialType.HeavyExotics,
                 BaseCost = 50f,
                 CostMultiplier = 2f,
-                DiscreteValues = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
+                DiscreteValues = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024],
+                MaxLevel = 1,
+            }, startingLevel: 1);
+            manager.Register(new UpgradeDefinition
+            {
+                //not implemented yet
+                Type = UpgradeType.CryoUsage,
+                Name = "Cryo efficiency",
+                Description = "Unlocks faster time compression",
+                Category = UpgradeCategory.Cryo,
+                CostResource = MaterialType.HeavyExotics,
+                //missing
+                MaxLevel = 1,
             }, startingLevel: 1);
 
-            // === Mining Upgrades ===
+            // === Structural Upgrades ===
             manager.Register(new UpgradeDefinition
             {
                 Type = UpgradeType.MiningSpeed,
                 Name = "Mining",
                 Description = "Increases material transfer rate",
-                Category = UpgradeCategory.Mining,
-                CostResource = MaterialType.Iron,
+                Category = UpgradeCategory.Structural,
+                CostResource = MaterialType.Metalls,
                 BaseCost = 75f,
                 CostMultiplier = 1.5f,
                 BaseValue = 10f,
                 ValuePerLevel = 2f,
-                FactorPerLevel = 1.2f,  
+                FactorPerLevel = 1.2f,
+                MaxLevel = 1,
             });
 
             manager.Register(new UpgradeDefinition
@@ -86,55 +100,41 @@ namespace DustInterceptor
                 Type = UpgradeType.CargoCapacity,
                 Name = "Cargo",
                 Description = "Increases cargo hold size",
-                Category = UpgradeCategory.Mining,
-                CostResource = MaterialType.Rock,
+                Category = UpgradeCategory.Structural,
+                CostResource = MaterialType.Metalls,
                 BaseCost = 100f,
                 CostMultiplier = 2f,
                 BaseValue = 1000f,
-                ValuePerLevel = 500f
+                ValuePerLevel = 500f,
+                MaxLevel = 1,
             });
-
-            // === Navigation Upgrades ===
             manager.Register(new UpgradeDefinition
             {
                 Type = UpgradeType.PredictionLength,
                 Name = "Prediction",
                 Description = "Extends trajectory preview",
-                Category = UpgradeCategory.Navigation,
-                CostResource = MaterialType.Ice,
+                Category = UpgradeCategory.Structural,
+                CostResource = MaterialType.Metalls,
                 BaseCost = 50f,
                 CostMultiplier = 1.4f,
                 BaseValue = 1000f,  // Seconds of prediction
                 FactorPerLevel = 1.1f,
-                ValuePerLevel = 1f
+                ValuePerLevel = 1f,
+                MaxLevel = 1,
             });
-
             manager.Register(new UpgradeDefinition
             {
                 Type = UpgradeType.MinZoomLevel,
                 Name = "Zoom Range",
                 Description = "Allows zooming out further",
-                Category = UpgradeCategory.Navigation,
-                CostResource = MaterialType.Ice,
+                Category = UpgradeCategory.Structural,
+                CostResource = MaterialType.Metalls,
                 BaseCost = 40f,
                 CostMultiplier = 1.6f,
                 BaseValue = 0.008f,   // Start more zoomed in (higher = more restrictive)
-                FactorPerLevel = 0.5f, 
-                MaxLevel = 6  
+                FactorPerLevel = 0.5f,
+                MaxLevel = 1,
             });
-
-            manager.Register(new UpgradeDefinition
-            {
-                Type = UpgradeType.AsteroidTracker,
-                Name = "Tracker",
-                Description = "Track asteroid trajectories",
-                Category = UpgradeCategory.Navigation,
-                CostResource = MaterialType.Iron,
-                BaseCost = 1000f,
-                CostMultiplier = 1f,  // One-time purchase
-                IsUnlock = true,
-                MaxLevel = 1
-            }, startingLevel: 1);
         }
     }
 }

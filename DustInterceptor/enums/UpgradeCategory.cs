@@ -6,8 +6,7 @@ namespace DustInterceptor
     public enum UpgradeCategory
     {
         Propulsion,
-        TimeControl,
-        Mining,
-        Navigation
+        Cryo,
+        Structural
     }
 }

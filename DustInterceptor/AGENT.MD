@@ -1,22 +1,6 @@
 ﻿<!-- AGENT.MD -->
 # Dust Interceptor – Agent Playbook (MonoGame + Myra)
 
-This repo is intentionally "vibecode-first": fast iteration, minimal dependencies, and code that stays easy to move around.
-We are currently past the Orbit Sandbox and have:
-- 1000 asteroid ring + gravity + time warp
-- docking/mining mode
-- spatial hash broadphase
-- Myra-based mining UI
-- Target selection with orbital path preview
-
----
-
-## Build + Run
-- MonoGame (DesktopGL/Windows) assumed.
-- If UI text is missing or errors occur:
-  - Ensure you have a SpriteFont in Content (e.g. `UIFont.spritefont`) and content builds successfully.
-  - Set Myra to use it if needed (varies by Myra version).
-
 ---
 
 ## Controls (current)
@@ -41,6 +25,9 @@ We are currently past the Orbit Sandbox and have:
 - Transfer bandwidth is split evenly across all active material channels
 - UI is displayed via Myra panel when docked.
 
+### Events
+- Missing
+
 ---
 
 ## Current Features (Status)
@@ -50,7 +37,7 @@ We are currently past the Orbit Sandbox and have:
 - Time scales: 1..64 with substeps (max 16)
 
 ### World
-- 1000 asteroids spawned in ring with near-circular orbit velocity + variation
+- 10__000+ asteroids spawned in ring with near-circular orbit velocity + variation
 - Asteroid sizes biased toward small (power distribution)
 - Materials: Ice / Iron / Rock (amount scaled by asteroid radius²)
 - Ship cargo: Ice / Iron / Rock
@@ -89,6 +76,9 @@ We are currently past the Orbit Sandbox and have:
 ---
 
 ## Next Tickets (Agent Mode – do one at a time)
+
+### Event on too fast docking (Collision)
+- Destroy Materials or upgrades
 
 ---
 

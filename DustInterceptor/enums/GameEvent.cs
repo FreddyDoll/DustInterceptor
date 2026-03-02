@@ -6,7 +6,10 @@ namespace DustInterceptor
     public enum GameEvent
     {
         Intro,
-        Iron10,
-        OneMinute
+        IntroPlanet,
+        IntroExplosion,
+        DebrisTimewarp,
+        DebrisOrbitPrediction,
+        DebrisTracker
     }
 }
