@@ -3,8 +3,6 @@ using System.Collections.Generic;
 using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Graphics;
 using Microsoft.Xna.Framework.Input;
-using Myra;
-using Myra.Graphics2D.UI;
 
 namespace DustInterceptor
 {
@@ -38,8 +36,6 @@ namespace DustInterceptor
 
         // UI
         private int _resolutionScale = 2;
-        private MiningUi _miningUi = null!;
-        private Hud _hud = null!;
 
         // Time scale state
         private int _timeScaleIndex = 0;
@@ -115,10 +111,6 @@ namespace DustInterceptor
             _backgroundGridEffect = Content.Load<Effect>("BackgroundGrid");
             _planetEffect = Content.Load<Effect>("Planet");
             _asteroidEffect = Content.Load<Effect>("Asteroid");
-
-            // Initialize UI
-            _miningUi = new MiningUi(this, _resolutionScale);
-            _hud = new Hud(this, _resolutionScale);
         }
 
         protected override void Update(GameTime gameTime)
@@ -145,18 +137,6 @@ namespace DustInterceptor
             if (Pressed(gp.Buttons.LeftShoulder, _gpPrev.Buttons.LeftShoulder))
                 _timeScaleIndex = Math.Max(_timeScaleIndex - 1, 0);
 
-            // ----- Update HUD -----
-            int currentTimeScale = (int)_upgrades.Get(UpgradeType.MaxTimeScale).Definition.GetValue(_timeScaleIndex);
-            bool hasTracker = _upgrades.IsUnlocked(UpgradeType.AsteroidTracker);
-            _hud.Update(
-                realDt,
-                currentTimeScale,
-                fuel: _world.GetResource(MaterialType.Fuel),
-                dropMaterial: _world.Mode == GameMode.Flight ? _world.SelectedDropMaterial : null,
-                dropAmount: _world.Mode == GameMode.Flight ? _world.GetResource(_world.SelectedDropMaterial) : 0f,
-                hasClosestApproach: hasTracker && _world.HasClosestApproach,
-                closestApproachDistance: _world.ClosestApproachDistance);
-
             // Gate: asteroid tracking requires the Asteroid Tracker unlock
             bool hasAsteroidTracker = _upgrades.IsUnlocked(UpgradeType.AsteroidTracker);
             if (!hasAsteroidTracker)
@@ -170,8 +150,8 @@ namespace DustInterceptor
                 _world.ClearSelectedTarget();
             }
 
-            // ----- Input: camera mode toggle (flight mode only - Y is used for upgrade in mining) -----
-            if (_world.Mode == GameMode.Flight && Pressed(gp.Buttons.Y, _gpPrev.Buttons.Y))
+            // ----- Input: camera mode toggle (flight and docked mode) -----
+            if (Pressed(gp.Buttons.Y, _gpPrev.Buttons.Y))
             {
                 if (!hasAsteroidTracker)
                 {
@@ -198,16 +178,16 @@ namespace DustInterceptor
                 }
             }
 
-            // ----- Input: zoom (LT/RT) with upgradeable min zoom -----
+            // ----- Input: zoom (Right Stick Y) with upgradeable min zoom -----
             float minZoom = _upgrades.GetValue(UpgradeType.MinZoomLevel, _config.CameraZoomMin);
-            float zoomDelta = (gp.Triggers.Right - gp.Triggers.Left) * _config.CameraZoomSpeed * realDt;
+            var rs = gp.ThumbSticks.Right;
+            float zoomDelta = rs.Y * _config.CameraZoomSpeed * realDt;
             _camera.Zoom = Clamp(_camera.Zoom * (1f + zoomDelta), minZoom, _config.CameraZoomMax);
 
-            // ----- Input: right stick behavior depends on camera mode -----
-            var rs = gp.ThumbSticks.Right;
+            // ----- Input: right stick X behavior depends on camera mode -----
             Vector2 stickInput = new Vector2(rs.X, -rs.Y);
 
-            if (hasAsteroidTracker && _cameraMode == CameraMode.TargetSelection && _world.Mode == GameMode.Flight)
+            if (hasAsteroidTracker && _cameraMode == CameraMode.TargetSelection)
             {
                 // In target selection mode, move cursor offset relative to ship
                 if (stickInput.LengthSquared() > 0.01f)
@@ -242,7 +222,7 @@ namespace DustInterceptor
                     _camera.Position += stickInput * (_config.CameraPanSpeed * realDt) / MathF.Max(_camera.Zoom, 0.0001f);
                 }
             }
-            else // LockedToShip or not in flight mode
+            else // LockedToShip
             {
                 // If locked, follow ship
                 _camera.Position = _world.Ship.Position;
@@ -255,9 +235,7 @@ namespace DustInterceptor
             }
             else if (_world.Mode == GameMode.Mining)
             {
-                UpdateMiningMode(gp, realDt);
-                // Reset camera mode when entering mining
-                _cameraMode = CameraMode.LockedToShip;
+                UpdateDockedMode(gp, realDt);
             }
 
             _gpPrev = gp;
@@ -296,78 +274,39 @@ namespace DustInterceptor
             int currentTimeScale = (int)_upgrades.Get(UpgradeType.MaxTimeScale).Definition.GetValue(_timeScaleIndex);
             _world.UpdateFlight(realDt, currentTimeScale, _impulseAim, fireImpulse, maxImpulse, 
                 cooldown, specificImpulse);
-
-            // Hide mining UI
-            _miningUi.Hide();
         }
 
-        private void UpdateMiningMode(GamePadState gp, float realDt)
+        /// <summary>
+        /// Docked mode: impulse direction rotates with asteroid. RT = strength, A = jump. B = undock (no impulse).
+        /// </summary>
+        private void UpdateDockedMode(GamePadState gp, float realDt)
         {
-            // Show mining UI and update data
-            if (!_miningUi.IsVisible)
-                _miningUi.Show();
+            // Get impulse parameters
+            float maxImpulse = _upgrades.GetValue(UpgradeType.ImpulseStrength);
 
-            // Helper to get resources for upgrade system
-            float GetResource(MaterialType r) => _world.GetResource(r);
+            // Impulse direction from docked asteroid's rotation
+            float rot = _world.DockedAsteroidRotation;
+            Vector2 dir = new Vector2(MathF.Cos(rot), MathF.Sin(rot));
 
-            if (_world.DockedAsteroidIndex >= 0 && _world.DockedAsteroidIndex < _world.Asteroids.Length)
+            // Impulse strength from Right Trigger (0..1)
+            float strength01 = gp.Triggers.Right;
+            _impulseAim = dir * (strength01 * maxImpulse);
+
+            // Jump with A: undock + apply impulse (only when NOT in target selection mode, where A selects a target)
+            if (_cameraMode != CameraMode.TargetSelection && Pressed(gp.Buttons.A, _gpPrev.Buttons.A) && strength01 > 0.01f)
             {
-                ref var asteroid = ref _world.Asteroids[_world.DockedAsteroidIndex];
-                
-                // Build upgrade display data list
-                var upgradeDataList = new List<UpgradeDisplayData>();
-                foreach (var state in _upgrades.GetAvailableUpgrades())
-                {
-                    upgradeDataList.Add(_upgrades.GetDisplayData(state.Definition.Type, GetResource));
-                }
-
-                _miningUi.UpdateData(new MiningUiData
-                {
-                    AsteroidMaterials = asteroid.Materials,
-                    ShipCargo = new Dictionary<MaterialType, float>(_world.ShipCargo),
-                    CurrentMiningSpeed = _upgrades.GetValue(UpgradeType.MiningSpeed),
-                    Upgrades = upgradeDataList,
-                    TransferDirections = new Dictionary<MaterialType, int>(_world.TransferDirections)
-                });
+                _world.JumpFromAsteroid(_impulseAim);
             }
 
-            // Handle UI input
-            var (action, upgradeType, material) = _miningUi.HandleInput(gp, _gpPrev);
-            switch (action)
+            // Undock with B (no impulse, just detach)
+            if (Pressed(gp.Buttons.B, _gpPrev.Buttons.B))
             {
-                case MiningAction.ToggleTransfer:
-                    if (material.HasValue)
-                    {
-                        _world.ToggleTransferDirection(material.Value);
-                    }
-                    break;
-
-                case MiningAction.PurchaseUpgrade:
-                    if (upgradeType.HasValue && _upgrades.TryPurchase(upgradeType.Value, GetResource, _world.TrySpendResource))
-                    {
-                        // Update values that depend on upgrades
-                        if (upgradeType.Value == UpgradeType.MiningSpeed)
-                        {
-                            _world.SetMiningTransferRate(_upgrades.GetValue(UpgradeType.MiningSpeed));
-                        }
-                        else if (upgradeType.Value == UpgradeType.PredictionLength)
-                        {
-                            _world.SetPredictionHorizon(_upgrades.GetValue(UpgradeType.PredictionLength));
-                        }
-                    }
-                    break;
-                case MiningAction.Undock:
-                    _world.Undock();
-                    _miningUi.Hide();
-                    break;
+                _world.Undock();
             }
 
-            // ----- Update simulation (mining mode with auto-transfer) -----
+            // Update simulation (mining/docked physics) — pass impulseAim for prediction preview
             int currentTimeScale = (int)_upgrades.Get(UpgradeType.MaxTimeScale).Definition.GetValue(_timeScaleIndex);
-            _world.UpdateMining(realDt, currentTimeScale);
-
-            // Clear impulse aim while docked
-            _impulseAim = Vector2.Zero;
+            _world.UpdateMining(realDt, currentTimeScale, _impulseAim);
         }
 
         protected override void Draw(GameTime gameTime)
@@ -391,6 +330,12 @@ namespace DustInterceptor
 
             // Asteroids (with shader)
             DrawAsteroidsShader();
+
+            // Visited asteroid orbit predictions (gray, background — drawn before ship trails)
+            foreach (var kvp in _world.VisitedPredictions)
+            {
+                DrawPath(kvp.Value, _config.VisitedAsteroidOrbitColor, _config.VisitedAsteroidOrbitWidth);
+            }
 
             // Past trail
             DrawPath(_world.ShipTrail, _config.PastTrailColor, _config.PastTrailWidth);
@@ -452,7 +397,7 @@ namespace DustInterceptor
             }
 
             // Draw cursor in target selection mode
-            if (_upgrades.IsUnlocked(UpgradeType.AsteroidTracker) && _cameraMode == CameraMode.TargetSelection && _world.Mode == GameMode.Flight)
+            if (_upgrades.IsUnlocked(UpgradeType.AsteroidTracker) && _cameraMode == CameraMode.TargetSelection)
             {
                 // Calculate cursor world position from ship + offset
                 Vector2 cursorWorldPos = _world.Ship.Position + _cursorOffset;
@@ -473,50 +418,51 @@ namespace DustInterceptor
                 }
             }
 
-            // Draw impulse vector from ship with cooldown charge-up effect
-            // Shows ship's forward direction (actual firing direction) scaled by aim magnitude
+            // Draw impulse vector from ship (in flight mode: cooldown charge-up; in docked mode: rotating with asteroid)
             float maxImpulse = _upgrades.GetValue(UpgradeType.ImpulseStrength);
-            if (_world.Mode == GameMode.Flight && _impulseAim.LengthSquared() > (maxImpulse * maxImpulse) * 0.0025f)
+            if (_impulseAim.LengthSquared() > (maxImpulse * maxImpulse) * 0.0025f)
             {
-                float cooldown = _upgrades.GetValue(UpgradeType.ImpulseCooldown);
-                float cooldownLeft = _world.ImpulseCooldownLeft;
-                
-                // Calculate charge progress (0 = just fired, 1 = fully charged)
-                float chargeProgress = cooldown > 0.001f 
-                    ? 1f - (cooldownLeft / cooldown) 
-                    : 1f;
-                chargeProgress = Clamp(chargeProgress, 0f, 1f);
-
-                // Use ship's forward direction for the impulse visualization
-                // This shows where the impulse will actually be applied
-                float aimMagnitude = _impulseAim.Length();
-                Vector2 forwardImpulse = _world.ShipForward * aimMagnitude;
-                Vector2 fullEnd = _world.Ship.Position + forwardImpulse * _config.ImpulseAimScale;
-                
-                if (chargeProgress >= 1f)
+                if (_world.Mode == GameMode.Mining)
                 {
-                    // Fully charged - bright color, full length
+                    // Docked: draw impulse direction from asteroid rotation, always "ready" color
+                    Vector2 fullEnd = _world.Ship.Position + _impulseAim * _config.ImpulseAimScale;
                     DrawLineWorld(_world.Ship.Position, fullEnd, _config.ImpulseAimReadyColor, _config.ImpulseAimWidth);
                 }
                 else
                 {
-                    // Charging - draw dim background line at full length
-                    DrawLineWorld(_world.Ship.Position, fullEnd, _config.ImpulseAimChargingColor, _config.ImpulseAimWidth);
+                    // Flight: existing cooldown charge-up visualization
+                    float cooldown = _upgrades.GetValue(UpgradeType.ImpulseCooldown);
+                    float cooldownLeft = _world.ImpulseCooldownLeft;
                     
-                    // Draw charging portion in ready color, length based on progress
-                    if (chargeProgress > 0.01f)
+                    // Calculate charge progress (0 = just fired, 1 = fully charged)
+                    float chargeProgress = cooldown > 0.001f 
+                        ? 1f - (cooldownLeft / cooldown) 
+                        : 1f;
+                    chargeProgress = Clamp(chargeProgress, 0f, 1f);
+
+                    // Use ship's forward direction for the impulse visualization
+                    float aimMagnitude = _impulseAim.Length();
+                    Vector2 forwardImpulse = _world.ShipForward * aimMagnitude;
+                    Vector2 fullEnd = _world.Ship.Position + forwardImpulse * _config.ImpulseAimScale;
+                    
+                    if (chargeProgress >= 1f)
                     {
-                        Vector2 chargeEnd = _world.Ship.Position + forwardImpulse * _config.ImpulseAimScale * chargeProgress;
-                        DrawLineWorld(_world.Ship.Position, chargeEnd, _config.ImpulseAimReadyColor, _config.ImpulseAimWidth);
+                        DrawLineWorld(_world.Ship.Position, fullEnd, _config.ImpulseAimReadyColor, _config.ImpulseAimWidth);
+                    }
+                    else
+                    {
+                        DrawLineWorld(_world.Ship.Position, fullEnd, _config.ImpulseAimChargingColor, _config.ImpulseAimWidth);
+                        
+                        if (chargeProgress > 0.01f)
+                        {
+                            Vector2 chargeEnd = _world.Ship.Position + forwardImpulse * _config.ImpulseAimScale * chargeProgress;
+                            DrawLineWorld(_world.Ship.Position, chargeEnd, _config.ImpulseAimReadyColor, _config.ImpulseAimWidth);
+                        }
                     }
                 }
             }
 
             _spriteBatch.End();
-
-            // Draw Myra UI on top
-            _hud.Render();
-            _miningUi.Render();
 
             base.Draw(gameTime);
         }

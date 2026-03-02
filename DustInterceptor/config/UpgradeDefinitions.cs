@@ -64,7 +64,7 @@ namespace DustInterceptor
                 BaseCost = 50f,
                 CostMultiplier = 2f,
                 DiscreteValues = [1, 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024]
-            }, startingLevel: 1);
+            }, startingLevel: 10);
 
             // === Mining Upgrades ===
             manager.Register(new UpgradeDefinition

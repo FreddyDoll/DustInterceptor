@@ -106,6 +106,16 @@ namespace DustInterceptor
         public Color PredictedTrailColor = new(20, 50, 60, 10); //alpha does not work
         public float PredictedTrailWidth = 16f;
 
+        /// <summary>
+        /// Color for visited asteroid orbit prediction trails (gray, background).
+        /// </summary>
+        public Color VisitedAsteroidOrbitColor = new(60, 60, 60, 30);
+
+        /// <summary>
+        /// Width of visited asteroid orbit prediction trails.
+        /// </summary>
+        public float VisitedAsteroidOrbitWidth = 12f;
+
         // === Impulse Aim Rendering ===
         public Color ImpulseAimReadyColor = new(255, 80, 80, 180);      // Bright red when ready
         public Color ImpulseAimChargingColor = new(100, 100, 100, 150); // Dim gray while charging

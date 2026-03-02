@@ -46,6 +46,10 @@ namespace DustInterceptor
         private readonly List<Vector2> _targetPredictedPath = new();
         private int _selectedTargetIndex = -1;
 
+        // Visited asteroid orbit predictions
+        private readonly HashSet<int> _visitedAsteroidIndices = new();
+        private readonly Dictionary<int, List<Vector2>> _visitedPredictions = new();
+
         // Closest approach between ship and target predicted paths
         private Vector2 _closestApproachShipPos;
         private Vector2 _closestApproachTargetPos;
@@ -120,6 +124,9 @@ namespace DustInterceptor
             };
 
             SpawnAsteroids();
+
+            // RH3: Start docked on the closest asteroid to the ship's spawn position
+            DockToClosestAsteroidOnStart();
         }
 
         private void SpawnAsteroids()
@@ -192,9 +199,45 @@ namespace DustInterceptor
                         Velocity = vel,
                         Radius = asteroidRadius,
                         Materials = materials,
-                        Disabled = false
+                        Disabled = false,
+                        Rotation = (float)(_rng.NextDouble() * Math.PI * 2.0),
+                        RotationRate = (float)(_rng.NextDouble() - 0.5) * 1.0f   // ±0.5 rad/s
                     };
                 }
+            }
+        }
+
+        /// <summary>
+        /// Finds the nearest non-disabled asteroid to the ship and docks to it.
+        /// Used at game start so the player begins in docked state.
+        /// </summary>
+        private void DockToClosestAsteroidOnStart()
+        {
+            int bestIndex = -1;
+            float bestDistSq = float.MaxValue;
+
+            for (int i = 0; i < _asteroids.Length; i++)
+            {
+                if (_asteroids[i].Disabled)
+                    continue;
+
+                float distSq = Vector2.DistanceSquared(_ship.Position, _asteroids[i].Position);
+                if (distSq < bestDistSq)
+                {
+                    bestDistSq = distSq;
+                    bestIndex = i;
+                }
+            }
+
+            if (bestIndex >= 0)
+            {
+                _mode = GameMode.Mining;
+                _dockedAsteroidIndex = bestIndex;
+                _visitedAsteroidIndices.Add(bestIndex);
+
+                ref var asteroid = ref _asteroids[bestIndex];
+                _ship.Position = asteroid.Position;
+                _ship.Velocity = asteroid.Velocity;
             }
         }
 
@@ -206,6 +249,17 @@ namespace DustInterceptor
         public IReadOnlyList<Vector2> PredictedPath => _predictedPath;
         public IReadOnlyList<Vector2> TargetPredictedPath => _targetPredictedPath;
         public int SelectedTargetIndex => _selectedTargetIndex;
+
+        /// <summary>
+        /// Set of asteroid indices the player has visited (docked to).
+        /// </summary>
+        public IReadOnlySet<int> VisitedAsteroidIndices => _visitedAsteroidIndices;
+
+        /// <summary>
+        /// Predicted orbit paths for all visited (non-disabled) asteroids.
+        /// Key = asteroid index, Value = list of sampled positions along one orbit.
+        /// </summary>
+        public IReadOnlyDictionary<int, List<Vector2>> VisitedPredictions => _visitedPredictions;
 
         /// <summary>
         /// Position on the ship's predicted path at the closest approach point.
@@ -268,6 +322,15 @@ namespace DustInterceptor
         /// Gets the ship's forward direction as a unit vector.
         /// </summary>
         public Vector2 ShipForward => new Vector2(MathF.Cos(_ship.Rotation), MathF.Sin(_ship.Rotation));
+
+        /// <summary>
+        /// Gets the rotation angle of the currently docked asteroid (in radians).
+        /// Returns 0 if not docked.
+        /// </summary>
+        public float DockedAsteroidRotation =>
+            (_dockedAsteroidIndex >= 0 && _dockedAsteroidIndex < _asteroids.Length)
+                ? _asteroids[_dockedAsteroidIndex].Rotation
+                : 0f;
 
         // ===== Cargo operations =====
 
@@ -439,6 +502,9 @@ namespace DustInterceptor
 
             // Update target prediction and closest approach
             UpdateTargetPredictionWithClosestApproach(impulseAim);
+
+            // Update orbit predictions for all visited asteroids
+            UpdateVisitedAsteroidPredictions();
         }
 
         /// <summary>
@@ -490,7 +556,7 @@ namespace DustInterceptor
         /// <summary>
         /// Updates the simulation in mining mode.
         /// </summary>
-        public void UpdateMining(float realDt, int timeScale)
+        public void UpdateMining(float realDt, int timeScale, Vector2 impulseAim = default)
         {
             // Auto-transfer materials (scales with time warp)
             if (_dockedAsteroidIndex >= 0 && _dockedAsteroidIndex < _asteroids.Length)
@@ -571,10 +637,44 @@ namespace DustInterceptor
                     _shipTrail.Dequeue();
             }
 
-            // Clear prediction while docked
+            // Update prediction while docked: show where ship would go if it jumped with current impulseAim
+            UpdateDockedPrediction(impulseAim);
+
+            // Update target prediction and closest approach (reuse flight logic)
+            UpdateTargetPredictionWithClosestApproach(impulseAim);
+
+            // Update orbit predictions for all visited asteroids
+            UpdateVisitedAsteroidPredictions();
+        }
+
+        /// <summary>
+        /// Updates prediction while docked. Uses impulseAim directly as deltaV
+        /// (direction comes from asteroid rotation, not ship forward).
+        /// </summary>
+        private void UpdateDockedPrediction(Vector2 impulseAim)
+        {
             _predictedPath.Clear();
-            _targetPredictedPath.Clear();
-            _hasClosestApproach = false;
+
+            Vector2 pos = _ship.Position;
+            // In docked mode, impulseAim IS the deltaV vector (already direction * strength)
+            Vector2 vel = _ship.Velocity + impulseAim;
+
+            float horizon = ComputeOneOrbitHorizonSeconds(pos, vel);
+            horizon = Math.Min(_predictionHorizonSeconds, horizon);
+            if (horizon <= 0.001f)
+                return;
+
+            float dt = horizon / _config.PredictSteps;
+
+            for (int i = 0; i <= _config.PredictSteps; i++)
+            {
+                Vector2 acc = ComputeGravityAcceleration(pos);
+                vel += acc * dt;
+                pos += vel * dt;
+
+                if (i % _config.PredictSampleEvery == 0)
+                    _predictedPath.Add(pos);
+            }
         }
 
         /// <summary>
@@ -603,6 +703,22 @@ namespace DustInterceptor
             }
 
             _dockedAsteroidIndex = -1;
+        }
+
+        /// <summary>
+        /// Undocks from the current asteroid and applies an impulse to the ship.
+        /// Used for the "jump from asteroid" mechanic (RH5).
+        /// </summary>
+        public void JumpFromAsteroid(Vector2 impulse)
+        {
+            if (_mode != GameMode.Mining || _dockedAsteroidIndex < 0)
+                return;
+
+            // Undock first (sets mode to Flight, clears dock index)
+            Undock();
+
+            // Apply impulse velocity to ship
+            _ship.Velocity += impulse;
         }
 
         /// <summary>
@@ -690,6 +806,9 @@ namespace DustInterceptor
                 Vector2 acc = ComputeGravityAcceleration(_asteroids[i].Position);
                 _asteroids[i].Velocity += acc * dt;
                 _asteroids[i].Position += _asteroids[i].Velocity * dt;
+
+                // Update asteroid spin
+                _asteroids[i].Rotation += _asteroids[i].RotationRate * dt;
             }
         }
 
@@ -758,10 +877,19 @@ namespace DustInterceptor
             Vector2 tPos = target.Position;
             Vector2 tVel = target.Velocity;
 
-            // Ship state (with impulse preview, same as UpdatePrediction)
+            // Ship state with impulse preview
             Vector2 sPos = _ship.Position;
-            Vector2 forward = ShipForward;
-            var deltaV = forward * impulseAim.Length();
+            Vector2 deltaV;
+            if (_mode == GameMode.Mining)
+            {
+                // Docked: impulseAim IS the full deltaV vector (direction from asteroid rotation)
+                deltaV = impulseAim;
+            }
+            else
+            {
+                // Flight: deltaV is in ship's forward direction, magnitude from impulseAim
+                deltaV = ShipForward * impulseAim.Length();
+            }
             Vector2 sVel = _ship.Velocity + deltaV;
 
             // Use the shorter of the two orbit horizons so both paths cover the same time
@@ -810,6 +938,59 @@ namespace DustInterceptor
                 _closestApproachTargetPos = bestTargetPos;
                 _closestApproachDistance = MathF.Sqrt(bestDistSq);
                 _hasClosestApproach = true;
+            }
+        }
+
+        /// <summary>
+        /// Updates orbit predictions for all visited (non-disabled) asteroids.
+        /// Each visited asteroid gets a full-orbit predicted path (gray background trail).
+        /// </summary>
+        private void UpdateVisitedAsteroidPredictions()
+        {
+            // Remove predictions for disabled asteroids
+            _visitedPredictions.Keys.ToList().ForEach(k =>
+            {
+                if (k < 0 || k >= _asteroids.Length || _asteroids[k].Disabled)
+                    _visitedPredictions.Remove(k);
+            });
+
+            foreach (int idx in _visitedAsteroidIndices)
+            {
+                if (idx < 0 || idx >= _asteroids.Length || _asteroids[idx].Disabled)
+                    continue;
+
+                ref var asteroid = ref _asteroids[idx];
+
+                Vector2 pos = asteroid.Position;
+                Vector2 vel = asteroid.Velocity;
+
+                float horizon = ComputeOneOrbitHorizonSeconds(pos, vel);
+                horizon = Math.Min(_predictionHorizonSeconds, horizon);
+
+                if (!_visitedPredictions.TryGetValue(idx, out var path))
+                {
+                    path = new List<Vector2>();
+                    _visitedPredictions[idx] = path;
+                }
+                else
+                {
+                    path.Clear();
+                }
+
+                if (horizon <= 0.001f)
+                    continue;
+
+                float dt = horizon / _config.PredictSteps;
+
+                for (int i = 0; i <= _config.PredictSteps; i++)
+                {
+                    Vector2 acc = ComputeGravityAcceleration(pos);
+                    vel += acc * dt;
+                    pos += vel * dt;
+
+                    if (i % _config.PredictSampleEvery == 0)
+                        path.Add(pos);
+                }
             }
         }
 
@@ -908,6 +1089,7 @@ namespace DustInterceptor
             _mode = GameMode.Mining;
             _dockedAsteroidIndex = asteroidIndex;
             _ignoreAsteroidIndex = -1;
+            _visitedAsteroidIndices.Add(asteroidIndex);
 
             ref var asteroid = ref _asteroids[asteroidIndex];
 

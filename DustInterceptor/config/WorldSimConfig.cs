@@ -76,8 +76,8 @@ namespace DustInterceptor
             {
                 Name = "Main Belt",
                 Count = 10000,
-                InnerRadius = 170_000f,
-                OuterRadius = 230_000f,
+                InnerRadius = 100_000f,
+                OuterRadius = 250_000f,
                 RadiusMin = 5f,
                 RadiusMax = 60f,
                 OrbitVariation = 0.01f,

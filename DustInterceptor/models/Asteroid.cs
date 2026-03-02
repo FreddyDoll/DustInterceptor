@@ -11,6 +11,16 @@ namespace DustInterceptor
         public float Radius;
 
         /// <summary>
+        /// Current rotation angle in radians.
+        /// </summary>
+        public float Rotation;
+
+        /// <summary>
+        /// Rotation speed in radians per second (positive = counter-clockwise).
+        /// </summary>
+        public float RotationRate;
+
+        /// <summary>
         /// Material amounts stored by type. Replaces hardcoded Ice/Iron/Rock fields.
         /// </summary>
         public Dictionary<MaterialType, float> Materials;
